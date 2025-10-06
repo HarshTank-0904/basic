@@ -1,0 +1,52 @@
+CREATE TABLE login_attempts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ip_address VARCHAR(50),
+    attempts INT DEFAULT 0,
+    last_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+
+<?php
+session_start();
+$conn = new mysqli("localhost", "root", "", "test_db");
+
+$ip = $_SERVER['REMOTE_ADDR'];
+$timeoutMinutes = 5;
+$maxAttempts = 5;
+
+// Check if IP exists in login_attempts table
+$res = $conn->query("SELECT * FROM login_attempts WHERE ip_address='$ip'");
+$row = $res->fetch_assoc();
+
+if ($row) {
+    $attempts = $row['attempts'];
+    $last = strtotime($row['last_attempt']);
+    $now = time();
+
+    // If attempts reached max and within timeout
+    if ($attempts >= $maxAttempts && ($now - $last) < ($timeoutMinutes * 60)) {
+        die("Too many failed attempts. Try again after 5 minutes.");
+    }
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $username = $_POST["username"];
+    $password = $_POST["password"];
+
+    $result = $conn->query("SELECT * FROM users WHERE username='$username' AND password='$password'");
+
+    if ($result->num_rows == 1) {
+        // Login success → reset attempts
+        $conn->query("DELETE FROM login_attempts WHERE ip_address='$ip'");
+        echo "Login Successful!";
+    } else {
+        // Fail → increase count
+        if ($row) {
+            $conn->query("UPDATE login_attempts SET attempts=attempts+1, last_attempt=NOW() WHERE ip_address='$ip'");
+        } else {
+            $conn->query("INSERT INTO login_attempts(ip_address, attempts) VALUES('$ip', 1)");
+        }
+        echo "Invalid credentials!";
+    }
+}
+?>
