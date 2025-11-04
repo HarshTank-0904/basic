@@ -1,784 +1,744 @@
 
-Mini E‑Commerce App (PHP MVC) — Complete Blueprint
-==================================================
+E-COMMERCE MINI PROJECT (PHP MVC) — COMPLETE IMPLEMENTATION GUIDE
+=================================================================
 
-Author: You
-Target: Quick but solid mini‑project with Admin + User sides
-Stack: PHP (MVC, no framework), MySQL, HTML/CSS/JS (jQuery/AJAX optional), Razorpay/Stripe test mode
-Goal: One place to copy‑paste from while you build
+Audience
+--------
+This guide assumes you are building a mini e‑commerce app in **PHP** with a custom lightweight MVC (no heavy framework), MySQL (MariaDB compatible), and jQuery/vanilla JS for AJAX. It covers **Admin** and **User** sides, a clean folder structure, data flow, theming (color + font), and a payment gateway integration flow (Razorpay/Stripe-ready).
 
+--------------------------------------------------------------------------------
+1) PROJECT GOALS & SCOPE
+--------------------------------------------------------------------------------
+Admin side:
+  1. Admin login (auth + authorization)
+  2. Category management (CRUD) with nested subcategories (e.g., Fashion → Shirt/T-shirt)
+  3. Product management (CRUD) with images, stock, price, discount
+  4. Order management (search, filter, status update, view details, refunds notes)
+  5. Payment gateway integration overview & hooks (capture, webhooks)
+  6. Customization page to set global theme: primary color, accent color, font-family
 
-0) High‑Level Feature List
---------------------------
-Admin side
-  A1) Admin login/logout
-  A2) Category + subcategory management (CRUD)
-  A3) Product management (CRUD + image upload, status, stock)
-  A4) Order management (view orders, change status)
-  A5) Payment gateway integration (capture order payments in test mode)
-  A6) Theme customization (global color + font)
+User side:
+  1. Product browsing by category/subcategory, search, sort, filters
+  2. Add to cart (guest cart on session, upgrade to user on login)
+  3. Order summary (address, shipping, totals, taxes, offers)
+  4. Confirmation screen + payment initiation
+  5. Post-payment success/failure + order placement
 
-User side
-  U1) Browse products with category filter
-  U2) Product details
-  U3) Add to cart / update / remove
-  U4) Checkout → order summary → confirm
-  U5) Payment → success/failure callbacks
-  U6) Orders list (optional if you add user accounts)
+Non-functional requirements:
+  - MVC separation, reusable layout/partials (header/footer), CSRF protection
+  - Input validation (server-side), basic XSS protections, prepared statements
+  - Pagination, SEO-friendly slugs, meaningful URLs (optional)
+  - Theme applied system-wide from Admin settings, cached for performance
 
-Cross‑cutting
-  C1) MVC routing
-  C2) Views with shared header/footer/alerts
-  C3) Server‑side validation + CSRF protection
-  C4) Sessions for auth + cart
-  C5) Clean URLs via .htaccess
-  C6) Secure file uploads (images)
-  C7) Config‑driven environment (DB creds, payment keys)
+--------------------------------------------------------------------------------
+2) FOLDER STRUCTURE
+--------------------------------------------------------------------------------
+project-root/
+├── public/                      # Web root (DocumentRoot) — expose only this
+│   ├── index.php                # Single entry point (Front Controller)
+│   ├── assets/
+│   │   ├── css/
+│   │   │   ├── app.css          # Compiled CSS (variables read from Settings)
+│   │   │   └── admin.css
+│   │   ├── js/
+│   │   │   ├── app.js
+│   │   │   └── admin.js
+│   │   └── uploads/             # Product images (secured by filename rules)
+│   └── .htaccess                # URL rewriting to /public/index.php
+├── app/
+│   ├── Core/
+│   │   ├── App.php              # Router + Dispatcher
+│   │   ├── Controller.php       # Base controller (view(), redirect(), csrf())
+│   │   ├── Model.php            # Base model (DB connection, query builder)
+│   │   ├── View.php             # View renderer (layout + sections)
+│   │   ├── Auth.php             # Session helpers (login, roles, CSRF)
+│   │   └── Middleware.php       # Before/after filters (auth/admin-only)
+│   ├── Controllers/
+│   │   ├── HomeController.php
+│   │   ├── ProductController.php
+│   │   ├── CartController.php
+│   │   ├── OrderController.php
+│   │   ├── PaymentController.php
+│   │   ├── AuthController.php
+│   │   └── Admin/
+│   │       ├── DashboardController.php
+│   │       ├── CategoryController.php
+│   │       ├── ProductController.php
+│   │       ├── OrderController.php
+│   │       └── SettingsController.php   # Theme + general settings
+│   ├── Models/
+│   │   ├── User.php
+│   │   ├── Category.php
+│   │   ├── Product.php
+│   │   ├── Cart.php
+│   │   ├── Order.php
+│   │   ├── OrderItem.php
+│   │   ├── Payment.php
+│   │   └── Setting.php
+│   ├── Views/
+│   │   ├── layouts/
+│   │   │   ├── app.php          # Main site layout (includes header/footer)
+│   │   │   └── admin.php        # Admin layout
+│   │   ├── partials/
+│   │   │   ├── header.php
+│   │   │   ├── footer.php       # Reusable footer
+│   │   │   └── flash.php        # Success/error banners
+│   │   ├── home/
+│   │   │   └── index.php
+│   │   ├── product/
+│   │   │   ├── list.php
+│   │   │   └── detail.php
+│   │   ├── cart/
+│   │   │   ├── index.php
+│   │   │   └── summary.php
+│   │   ├── order/
+│   │   │   ├── place.php
+│   │   │   └── confirm.php
+│   │   ├── auth/
+│   │   │   ├── login.php
+│   │   │   └── register.php
+│   │   └── admin/
+│   │       ├── dashboard/index.php
+│   │       ├── category/{index,create,edit}.php
+│   │       ├── product/{index,create,edit}.php
+│   │       ├── order/{index,show,edit}.php
+│   │       └── settings/theme.php        # Color + font form
+│   ├── config/
+│   │   ├── database.php
+│   │   └── app.php            # Base URL, APP_ENV, payment keys loaded from env
+│   └── helpers.php
+├── storage/
+│   ├── logs/
+│   └── cache/
+├── vendor/                      # (optional if using Composer autoload)
+├── .env                         # DB creds, payment keys
+└── composer.json                # PSR-4 autoload (optional)
 
+.htaccess (public):
+-------------------
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
 
-1) Project Structure
---------------------
-ecommerce/
-├─ app/
-│  ├─ controllers/
-│  │  ├─ AdminController.php
-│  │  ├─ CategoryController.php
-│  │  ├─ ProductController.php
-│  │  ├─ OrderController.php
-│  │  ├─ CustomizationController.php
-│  │  ├─ AuthController.php           # admin login/logout
-│  │  ├─ UserController.php           # homepage, product list/details
-│  │  └─ CartController.php           # cart + checkout
-│  │
-│  ├─ models/
-│  │  ├─ Admin.php
-│  │  ├─ Category.php
-│  │  ├─ Product.php
-│  │  ├─ Order.php
-│  │  ├─ OrderItem.php
-│  │  ├─ User.php                     # optional (for registered customers)
-│  │  └─ Customization.php
-│  │
-│  └─ views/
-│     ├─ layouts/
-│     │  ├─ admin_header.php
-│     │  ├─ admin_footer.php
-│     │  ├─ user_header.php
-│     │  └─ user_footer.php
-│     │
-│     ├─ partials/                    # small reusable pieces
-│     │  ├─ flash.php                 # success/error messages
-│     │  └─ csrf_field.php
-│     │
-│     ├─ admin/
-│     │  ├─ login.php
-│     │  ├─ dashboard.php
-│     │  ├─ categories_index.php
-│     │  ├─ categories_form.php
-│     │  ├─ products_index.php
-│     │  ├─ products_form.php
-│     │  ├─ orders_index.php
-│     │  └─ customization.php
-│     │
-│     └─ user/
-│        ├─ home.php
-│        ├─ product_list.php
-│        ├─ product_details.php
-│        ├─ cart.php
-│        ├─ checkout.php
-│        └─ order_summary.php
-│
-├─ config/
-│  ├─ app.php                         # APP_URL, environment flags
-│  ├─ database.php                    # PDO connection factory
-│  └─ payment.php                     # Razorpay/Stripe test keys
-│
-├─ core/
-│  ├─ App.php                         # router: /controller/method/params
-│  ├─ Controller.php                  # base controller (view(), model())
-│  ├─ Model.php                       # base model (PDO, helpers)
-│  ├─ Auth.php                        # admin guard, CSRF, flash
-│  └─ Helpers.php                     # sanitize, redirect, etc.
-│
-├─ public/
-│  ├─ css/
-│  │  ├─ base.css
-│  │  └─ theme.php                    # dynamic CSS from DB (color/font)
-│  ├─ js/
-│  │  └─ app.js
-│  ├─ images/
-│  └─ uploads/                        # product images (protect via .htaccess if needed)
-│
-├─ routes/
-│  └─ web.php                         # route table if you prefer explicit mapping
-│
-├─ storage/
-│  └─ logs/                           # error/app logs
-│
-├─ index.php                          # front controller
-├─ .htaccess                          # URL rewriting to index.php
-└─ README.md
+--------------------------------------------------------------------------------
+3) DATABASE DESIGN (MySQL)
+--------------------------------------------------------------------------------
+Tables (with essential fields only):
+1) users
+   - id (PK) INT AI
+   - name VARCHAR(120)
+   - email VARCHAR(160) UNIQUE
+   - password_hash VARCHAR(255)
+   - role ENUM('admin','customer') DEFAULT 'customer'
+   - created_at DATETIME, updated_at DATETIME
 
+2) categories
+   - id (PK) INT AI
+   - parent_id INT NULL (FK to categories.id)  # for subcategories
+   - name VARCHAR(120)
+   - slug VARCHAR(160) UNIQUE
+   - is_active TINYINT(1) DEFAULT 1
+   - created_at, updated_at
+   Index: (parent_id), (slug)
 
-2) Database Schema (MySQL)
---------------------------
--- Admins
-CREATE TABLE admins (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  username VARCHAR(100) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,     -- password_hash()
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+3) products
+   - id (PK) INT AI
+   - category_id INT (FK categories.id)
+   - name VARCHAR(160)
+   - slug VARCHAR(180) UNIQUE
+   - description TEXT
+   - price DECIMAL(10,2)
+   - discount_percent DECIMAL(5,2) DEFAULT 0.00
+   - stock INT DEFAULT 0
+   - image VARCHAR(255) NULL
+   - is_active TINYINT(1) DEFAULT 1
+   - created_at, updated_at
+   Index: (category_id), (slug), (is_active)
 
--- Categories (self‑referencing for subcategories)
-CREATE TABLE categories (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(120) NOT NULL,
-  parent_id INT NULL,
-  FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
-);
+4) orders
+   - id (PK) BIGINT AI
+   - user_id INT (FK users.id) NULL for guest-to-user migration (or store email)
+   - status ENUM('pending','paid','shipped','delivered','cancelled','failed') DEFAULT 'pending'
+   - total_amount DECIMAL(10,2)
+   - currency VARCHAR(10) DEFAULT 'INR'
+   - payment_gateway VARCHAR(40) NULL
+   - payment_reference VARCHAR(100) NULL  # gateway payment id
+   - address_json JSON                     # shipping/billing combined for demo
+   - created_at, updated_at
+   Index: (user_id), (status)
 
--- Products
-CREATE TABLE products (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  category_id INT NOT NULL,
-  name VARCHAR(150) NOT NULL,
-  slug VARCHAR(180) UNIQUE,
-  description TEXT,
-  price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  stock INT NOT NULL DEFAULT 0,
-  image VARCHAR(255) NULL,
-  status TINYINT(1) NOT NULL DEFAULT 1, -- 1 active, 0 inactive
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL,
-  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
-);
+5) order_items
+   - id (PK) BIGINT AI
+   - order_id BIGINT (FK orders.id)
+   - product_id INT (FK products.id)
+   - price DECIMAL(10,2)       # price at time of purchase (after discounts)
+   - quantity INT
+   - created_at, updated_at
+   Index: (order_id), (product_id)
 
--- Users (optional for registered checkout; for guest checkout you can skip)
+6) payments
+   - id (PK) BIGINT AI
+   - order_id BIGINT (FK orders.id)
+   - gateway ENUM('razorpay','stripe','cod') DEFAULT 'razorpay'
+   - status ENUM('created','authorized','captured','failed','refunded') DEFAULT 'created'
+   - gateway_payment_id VARCHAR(100) NULL
+   - gateway_order_id VARCHAR(100) NULL
+   - amount DECIMAL(10,2)
+   - currency VARCHAR(10) DEFAULT 'INR'
+   - payload_json JSON NULL      # store raw gateway response
+   - created_at, updated_at
+   Index: (order_id), (gateway_payment_id)
+
+7) settings
+   - id (PK) INT AI
+   - key VARCHAR(100) UNIQUE  # e.g., 'theme.primary_color', 'theme.font_family'
+   - value TEXT               # store stringified value
+   - updated_at DATETIME
+
+SQL (minimal):
+--------------
 CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(120) NOT NULL,
-  email VARCHAR(150) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  address TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  name VARCHAR(120),
+  email VARCHAR(160) UNIQUE,
+  password_hash VARCHAR(255),
+  role ENUM('admin','customer') DEFAULT 'customer',
+  created_at DATETIME, updated_at DATETIME
 );
 
--- Cart (DB‑backed) — If you prefer session‑only cart, skip this table
-CREATE TABLE cart (
+CREATE TABLE categories (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NULL,                   -- NULL for guest (use session token alt table if needed)
-  session_id VARCHAR(64) NULL,        -- store PHPSESSID for guests
-  product_id INT NOT NULL,
-  quantity INT NOT NULL DEFAULT 1,
-  added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-  INDEX (user_id, session_id)
+  parent_id INT NULL,
+  name VARCHAR(120), slug VARCHAR(160) UNIQUE,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at DATETIME, updated_at DATETIME,
+  INDEX (parent_id),
+  CONSTRAINT fk_cat_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 
--- Orders
+CREATE TABLE products (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  category_id INT,
+  name VARCHAR(160), slug VARCHAR(180) UNIQUE,
+  description TEXT,
+  price DECIMAL(10,2), discount_percent DECIMAL(5,2) DEFAULT 0.00,
+  stock INT DEFAULT 0,
+  image VARCHAR(255) NULL,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at DATETIME, updated_at DATETIME,
+  INDEX (category_id),
+  CONSTRAINT fk_prod_cat FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+);
+
 CREATE TABLE orders (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NULL,                   -- NULL if guest
-  customer_name VARCHAR(120) NOT NULL,
-  customer_email VARCHAR(150) NOT NULL,
-  customer_address TEXT NOT NULL,
-  total_amount DECIMAL(10,2) NOT NULL,
-  status ENUM('Pending','Confirmed','Paid','Shipped','Delivered','Cancelled') DEFAULT 'Pending',
-  payment_provider ENUM('None','Razorpay','Stripe') DEFAULT 'None',
-  payment_ref VARCHAR(100) NULL,      -- gateway order_id/payment_id
-  payment_status ENUM('Pending','Paid','Failed') DEFAULT 'Pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NULL,
+  status ENUM('pending','paid','shipped','delivered','cancelled','failed') DEFAULT 'pending',
+  total_amount DECIMAL(10,2), currency VARCHAR(10) DEFAULT 'INR',
+  payment_gateway VARCHAR(40) NULL, payment_reference VARCHAR(100) NULL,
+  address_json JSON, created_at DATETIME, updated_at DATETIME,
+  INDEX (user_id)
 );
 
--- Order Items
 CREATE TABLE order_items (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT, product_id INT,
+  price DECIMAL(10,2), quantity INT,
+  created_at DATETIME, updated_at DATETIME,
+  INDEX (order_id), INDEX (product_id),
+  CONSTRAINT fk_item_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_item_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE payments (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT,
+  gateway ENUM('razorpay','stripe','cod') DEFAULT 'razorpay',
+  status ENUM('created','authorized','captured','failed','refunded') DEFAULT 'created',
+  gateway_payment_id VARCHAR(100) NULL, gateway_order_id VARCHAR(100) NULL,
+  amount DECIMAL(10,2), currency VARCHAR(10) DEFAULT 'INR',
+  payload_json JSON NULL,
+  created_at DATETIME, updated_at DATETIME,
+  INDEX (order_id), INDEX (gateway_payment_id),
+  CONSTRAINT fk_payment_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
+CREATE TABLE settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  order_id INT NOT NULL,
-  product_id INT NOT NULL,
-  quantity INT NOT NULL,
-  price DECIMAL(10,2) NOT NULL,
-  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  key VARCHAR(100) UNIQUE, value TEXT, updated_at DATETIME
 );
 
--- Customization (single row id=1)
-CREATE TABLE customization (
-  id INT PRIMARY KEY,
-  theme_color VARCHAR(20) DEFAULT '#e11d48',
-  font_style VARCHAR(50) DEFAULT 'Poppins',
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-INSERT INTO customization (id, theme_color, font_style) VALUES (1, '#e11d48', 'Poppins');
+--------------------------------------------------------------------------------
+4) DATA FLOW (END-TO-END)
+--------------------------------------------------------------------------------
+A) User product browse → detail → add to cart → summary → confirm → pay
+-----------------------------------------------------------------------
+1. GET /products?category=slug&page=1
+   Controller: ProductController@index → Model: Product::paginateByCategory()
+   View: product/list.php
 
+2. GET /product/{slug}
+   Controller: ProductController@show → Model: Product::findBySlug()
+   View: product/detail.php
 
-3) Request/Data Flow (How data passes through MVC)
---------------------------------------------------
-0. Browser sends request to /controller/method/params (pretty URL via .htaccess).
-1. public/.htaccess rewrites everything to /index.php?url=...
-2. index.php bootstraps core/App.php → parses url → resolves Controller + Method.
-3. Controller method:
-   a) reads input (GET/POST)
-   b) validates + checks CSRF (for POST)
-   c) calls Model functions for DB CRUD
-   d) sets flash messages / variables for view
-   e) returns View with $data array (compact variables)
-4. View receives $data → renders HTML. For user pages it includes /public/css/theme.php
-   to pull current theme (color/font) from DB.
-5. For AJAX:
-   - Controller returns JSON (no full HTML) and frontend updates DOM.
+3. POST /cart/add (AJAX)
+   Controller: CartController@add
+   - Validate product id, qty
+   - Check stock
+   - Add into session cart structure: cart = [{product_id, name, price_after_discount, qty}]
+   Response: JSON {ok:true, cartCount:n}
 
-Sequence Examples
------------------
-A) Admin creates a Category
-   Admin hits /admin/categories (GET) → CategoryController@index → Model->all() → View lists
-   Click "Add" → form (GET) → submit (POST to /admin/categories/store)
-   Controller validates → Model->create(name,parent_id) → redirect with flash success
+4. GET /cart
+   Controller: CartController@index → View: cart/index.php
 
-B) User adds a Product to Cart
-   User at /product/slug → clicks "Add to Cart" (POST/AJAX /cart/add)
-   CartController@add validates stock → adds item to session (or DB cart)
-   Returns JSON {ok:true, cart_count: N} → header updates count
+5. GET /cart/summary
+   Controller: CartController@summary (calculates subtotal, tax, shipping)
+   View: cart/summary.php
 
-C) Checkout + Payment (Razorpay example)
-   /checkout (GET) shows order summary from session cart
-   confirm (POST /checkout/place-order) → creates orders + order_items with status "Pending"
-   generate Razorpay order on server → get order_id → send to frontend
-   User pays on Razorpay widget → Razorpay returns payment_id + signature to success URL
-   Server verifies signature → updates orders.payment_status='Paid', status='Paid'
-   Redirect to /order/summary/{id}
+6. POST /order/confirm
+   Controller: OrderController@confirm
+   - Validate address form + CSRF
+   - Persist draft order + items (status='pending')
+   - Create payments row (status='created'), initialize gateway order (if required)
+   - Redirect to /pay/{orderId}
 
+7. GET /pay/{orderId}
+   Controller: PaymentController@init
+   - Build gateway checkout params (amount, currency, order id)
+   - Render payment page with gateway script
 
-4) Boilerplate: .htaccess + index.php + base core
---------------------------------------------------
-public/.htaccess (if hosting root: move this to project root with small changes)
-----------------------------------
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^ index.php [QSA,L]
-</IfModule>
+8. POST /payment/webhook (Gateway → Server)
+   Controller: PaymentController@webhook
+   - Verify signature
+   - Update payments.status and orders.status accordingly
+   - On success: set orders.status='paid', reduce product stock
 
-index.php (Front Controller)
----------------------------
-<?php
-session_start();
-require_once __DIR__.'/config/app.php';
-require_once __DIR__.'/core/Helpers.php';
-require_once __DIR__.'/core/App.php';
-require_once __DIR__.'/core/Controller.php';
-require_once __DIR__.'/core/Model.php';
-require_once __DIR__.'/core/Auth.php';
-(new Core\App()); // dispatch
+9. GET /order/confirm/{orderId}
+   Controller: OrderController@confirmPage → View: order/confirm.php
 
-core/App.php (Router - simple)
-------------------------------
-<?php
-namespace Core;
-class App {
-  protected $controller = 'UserController';
-  protected $method = 'home';
-  protected $params = [];
-  public function __construct() {
-    $url = $this->parseUrl();
-    $ctrl = !empty($url[0]) ? ucfirst($url[0]).'Controller' : $this->controller;
-    $ctrlFile = 'app/controllers/'.$ctrl.'.php';
-    if (file_exists($ctrlFile)) { require $ctrlFile; $this->controller = $ctrl; array_shift($url); }
-    $controller = new $this->controller;
-    $this->method = !empty($url[0]) && method_exists($controller, $url[0]) ? $url[0] : $this->method;
-    if (!empty($url[0])) array_shift($url);
-    $this->params = $url ?: [];
-    call_user_func_array([$controller, $this->method], $this->params);
-  }
-  private function parseUrl(){
-    if(isset($_GET['url'])){
-      return explode('/', filter_var(rtrim($_GET['url'], '/'), FILTER_SANITIZE_URL));
-    }
-    return [];
-  }
-}
+B) Admin CRUD + Theme
+---------------------
+1. Admin logs in → receives session with role=admin
+2. Category/Product CRUD routes only pass through AdminMiddleware
+3. Theme settings saved into `settings` table (keys: theme.primary_color, theme.font_family)
+4. On each request, a ThemeMiddleware reads settings (cached) and injects CSS variables to layout.
 
-core/Controller.php
--------------------
-<?php
-namespace Core;
+ASCII sequence (Add to cart):
+-----------------------------
+User -> ProductDetail(POST /cart/add) -> CartController@add -> Cart Model (session) -> JSON ok
+
+ASCII sequence (Payment webhook):
+---------------------------------
+Gateway -> POST /payment/webhook -> PaymentController@webhook -> Payment Model -> Order Model -> update statuses -> respond 200
+
+--------------------------------------------------------------------------------
+5) ROUTING (Front Controller + Router)
+--------------------------------------------------------------------------------
+public/index.php receives all requests. Example simple router map:
+
+GET  /                          HomeController@index
+GET  /products                  ProductController@index
+GET  /product/{slug}            ProductController@show
+POST /cart/add                  CartController@add
+POST /cart/update               CartController@update
+POST /cart/remove               CartController@remove
+GET  /cart                      CartController@index
+GET  /cart/summary              CartController@summary
+
+POST /order/confirm             OrderController@confirm
+GET  /order/confirm/{id}        OrderController@confirmPage
+
+GET  /pay/{id}                  PaymentController@init
+POST /payment/webhook           PaymentController@webhook
+
+GET  /login                     AuthController@loginForm
+POST /login                     AuthController@login
+POST /logout                    AuthController@logout
+
+# Admin
+GET  /admin                     Admin\DashboardController@index
+GET  /admin/categories          Admin\CategoryController@index
+GET  /admin/categories/create   Admin\CategoryController@create
+POST /admin/categories/store    Admin\CategoryController@store
+GET  /admin/categories/{id}/edit Admin\CategoryController@edit
+POST /admin/categories/{id}/update Admin\CategoryController@update
+POST /admin/categories/{id}/delete Admin\CategoryController@destroy
+
+GET  /admin/products            Admin\ProductController@index
+GET  /admin/products/create     Admin\ProductController@create
+POST /admin/products/store      Admin\ProductController@store
+GET  /admin/products/{id}/edit  Admin\ProductController@edit
+POST /admin/products/{id}/update Admin\ProductController@update
+POST /admin/products/{id}/delete Admin\ProductController@destroy
+
+GET  /admin/orders              Admin\OrderController@index
+GET  /admin/orders/{id}         Admin\OrderController@show
+POST /admin/orders/{id}/status  Admin\OrderController@updateStatus
+
+GET  /admin/settings/theme      Admin\SettingsController@themeForm
+POST /admin/settings/theme      Admin\SettingsController@themeSave
+
+--------------------------------------------------------------------------------
+6) CONTROLLER & MODEL SKELETONS (ESSENTIALS)
+--------------------------------------------------------------------------------
+Base Controller (app/Core/Controller.php):
+-----------------------------------------
 class Controller {
-  protected function model($model){ require_once 'app/models/'.$model.'.php'; return new $model(); }
-  protected function view($template, $data = [], $layout = 'user'){ extract($data);
-    if($layout === 'admin'){ require 'app/views/layouts/admin_header.php'; }
-    else { require 'app/views/layouts/user_header.php'; }
-    require 'app/views/'.$template.'.php';
-    if($layout === 'admin'){ require 'app/views/layouts/admin_footer.php'; }
-    else { require 'app/views/layouts/user_footer.php'; }
+  protected function view($template, $data = [], $layout = 'app') {
+    View::render($template, $data, $layout);
   }
-  protected function json($payload){ header('Content-Type: application/json'); echo json_encode($payload); }
+  protected function redirect($url) { header("Location: $url"); exit; }
+  protected function csrfToken() { return Auth::csrfToken(); }
+  protected function requireCsrf($token) { if (!Auth::verifyCsrf($token)) die('CSRF'); }
 }
 
-core/Model.php (PDO Singleton)
-------------------------------
-<?php
-namespace Core;
-use PDO;
-class Model {
-  protected $db;
-  public function __construct(){
-    $this->db = \Config\Database::pdo(); // see config/database.php
-  }
+ProductController@index:
+------------------------
+public function index() {
+  $categorySlug = $_GET['category'] ?? null;
+  $page = (int)($_GET['page'] ?? 1);
+  $products = Product::paginate($page, 12, $categorySlug);
+  $this->view('product/list', compact('products', 'categorySlug'));
 }
 
-config/database.php (PDO factory)
----------------------------------
-<?php
-namespace Config;
-use PDO;
-class Database {
-  public static function pdo(){
-    static $pdo = null;
-    if($pdo){ return $pdo; }
-    $host = '127.0.0.1'; $db='ecommerce'; $user='root'; $pass=''; $charset='utf8mb4';
-    $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
-    $opt = [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC];
-    $pdo = new PDO($dsn, $user, $pass, $opt);
-    return $pdo;
-  }
+ProductController@show:
+-----------------------
+public function show($slug) {
+  $product = Product::findBySlug($slug);
+  if (!$product || !$product['is_active']) $this->redirect('/products');
+  $this->view('product/detail', compact('product'));
 }
 
+CartController@add (AJAX):
+--------------------------
+public function add() {
+  $this->requireCsrf($_POST['csrf'] ?? '');
+  $pid = (int)($_POST['product_id'] ?? 0);
+  $qty = max(1, (int)($_POST['qty'] ?? 1));
+  $product = Product::find($pid);
+  if (!$product || !$product['is_active']) return json(['ok'=>false,'msg'=>'Not found']);
+  if ($product['stock'] < $qty) return json(['ok'=>false,'msg'=>'Insufficient stock']);
+  Cart::add($product, $qty);
+  return json(['ok'=>true,'cartCount'=>Cart::count()]);
+}
 
-5) Shared Layouts (How to add a footer to all pages)
-----------------------------------------------------
-app/views/layouts/user_header.php
----------------------------------
+OrderController@confirm:
+------------------------
+public function confirm() {
+  $this->requireCsrf($_POST['csrf'] ?? '');
+  $address = $_POST['address'] ?? [];
+  $items = Cart::items();
+  if (empty($items)) $this->redirect('/cart');
+  [$subtotal,$discount,$tax,$shipping,$total] = Cart::totals();
+  $orderId = Order::createPending(Auth::userId(), $items, $total, $address);
+  $paymentId = Payment::createForOrder($orderId, $total);
+  $this->redirect("/pay/$orderId");
+}
+
+PaymentController@webhook:
+--------------------------
+public function webhook() {
+  $payload = file_get_contents('php://input');
+  $sig = $_SERVER['HTTP_X_SIGNATURE'] ?? '';
+  if (!Payment::verifySignature($payload, $sig)) http_response_code(400);
+  $event = json_decode($payload, true);
+  Payment::handleWebhook($event);
+  http_response_code(200);
+}
+
+Model: Product.php (core ideas):
+--------------------------------
+class Product extends Model {
+  public static function paginate($page=1, $perPage=12, $categorySlug=null) { /* SELECT ... LIMIT ... */ }
+  public static function findBySlug($slug) { /* SELECT * FROM products WHERE slug=? */ }
+  public static function find($id) { /* SELECT by id */ }
+}
+
+Model: Cart.php (session):
+--------------------------
+class Cart {
+  public static function add($product, $qty) { /* $_SESSION['cart'][] = ... */ }
+  public static function items() { /* return array */ }
+  public static function totals() { /* compute using price - discount */ }
+  public static function count() { /* qty count */ }
+  public static function clear() { /* unset */ }
+}
+
+Model: Order.php:
+-----------------
+class Order extends Model {
+  public static function createPending($userId, $items, $total, $address) {
+    // INSERT orders + order_items (transaction), return order id
+  }
+  public static function markPaid($orderId, $gatewayPaymentId) { /* update */ }
+}
+
+Model: Payment.php:
+-------------------
+class Payment extends Model {
+  public static function createForOrder($orderId, $amount) { /* INSERT payments */ }
+  public static function verifySignature($payload,$sig) { /* gateway specific */ }
+  public static function handleWebhook($event) { /* parse + update orders/payments */ }
+}
+
+--------------------------------------------------------------------------------
+7) VIEWS, LAYOUTS & FOOTER INJECTION
+--------------------------------------------------------------------------------
+Layout pattern (app/Views/layouts/app.php):
+-------------------------------------------
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
+  <title><?= $title ?? 'Shop' ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= isset($title)?$title:'Shop' ?></title>
-  <link rel="stylesheet" href="/public/css/base.css">
-  <link rel="stylesheet" href="/public/css/theme.php"> <!-- dynamic color + font -->
+  <?php include VIEW_PATH.'/partials/theme-vars.php'; ?>
+  <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-<header class="container">
-  <nav class="nav">
-    <a href="/">Home</a>
-    <a href="/User/products">Products</a>
-    <a href="/Cart/index">Cart</a>
-  </nav>
-</header>
-<main class="container">
+  <?php include VIEW_PATH.'/partials/header.php'; ?>
+  <main class="container">
+    <?php include VIEW_PATH.'/partials/flash.php'; ?>
+    {{content}}  <!-- replaced by View::render -->
+  </main>
+  <?php include VIEW_PATH.'/partials/footer.php'; ?>
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>
 
-app/views/layouts/user_footer.php
----------------------------------
-</main>
-<footer class="container footer">
-  <p>&copy; <?= date('Y') ?> Mini E‑Commerce. All rights reserved.</p>
-</footer>
-<script src="/public/js/app.js"></script>
-</body></html>
-
-# To add the footer globally: every user view is wrapped by user_header.php and user_footer.php via Controller->view().
-# For admin, do the same with admin_header.php/admin_footer.php.
-
-app/views/partials/flash.php
-----------------------------
-<?php if(!empty($_SESSION['flash'])): ?>
-  <div class="alert <?= $_SESSION['flash']['type'] ?? 'info' ?>">
-    <?= htmlspecialchars($_SESSION['flash']['msg']) ?>
-  </div>
-  <?php unset($_SESSION['flash']); endif; ?>
-
-
-6) Theme Customization (Dynamic CSS)
-------------------------------------
-public/css/theme.php  (served as CSS but runs PHP)
---------------------------------------------------
+Theme variables partial (app/Views/partials/theme-vars.php):
+-----------------------------------------------------------
 <?php
-require_once __DIR__.'/../../config/database.php';
-require_once __DIR__.'/../../app/models/Customization.php';
-$custom = new \Customization(\Config\Database::pdo());
-$theme = $custom->getTheme();
-header('Content-Type: text/css');
+  $primary = Setting::get('theme.primary_color') ?? '#e11d48';
+  $accent = Setting::get('theme.accent_color') ?? '#f59e0b';
+  $font   = Setting::get('theme.font_family') ?? 'Inter, system-ui, sans-serif';
 ?>
-:root { --primary: <?= $theme['theme_color'] ?>; --font: '<?= $theme['font_style'] ?>', system-ui, sans-serif; }
-body { font-family: var(--font); }
-.btn-primary { background: var(--primary); color:#fff; border:0; padding:.6rem 1rem; border-radius:.4rem; }
-.nav, .footer { background: var(--primary); color:#fff; }
-a { color: var(--primary); }
-
-
-7) Core Controllers (Key methods with data passing)
----------------------------------------------------
-AuthController.php (Admin login/logout)
----------------------------------------
-class AuthController extends \Core\Controller {
-  public function login(){
-    if($_SERVER['REQUEST_METHOD']==='GET'){ return $this->view('admin/login', [], 'admin'); }
-    // POST
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $admin = $this->model('Admin')->findByUsername($username);
-    if($admin && password_verify($password, $admin['password'])){
-      $_SESSION['admin_id'] = $admin['id'];
-      $_SESSION['flash'] = ['type'=>'success','msg'=>'Welcome back!'];
-      return header('Location: /Admin/dashboard');
-    }
-    $_SESSION['flash'] = ['type'=>'error','msg'=>'Invalid credentials'];
-    return header('Location: /Auth/login');
-  }
-  public function logout(){ session_destroy(); header('Location: /Auth/login'); }
+<style>
+:root {
+  --color-primary: <?= htmlspecialchars($primary, ENT_QUOTES) ?>;
+  --color-accent: <?= htmlspecialchars($accent, ENT_QUOTES) ?>;
+  --font-base: <?= htmlspecialchars($font, ENT_QUOTES) ?>;
 }
+html,body { font-family: var(--font-base); }
+.btn-primary { background: var(--color-primary); }
+a { color: var(--color-primary); }
+.badge { background: var(--color-accent); }
+</style>
 
-CategoryController.php (CRUD)
------------------------------
-class CategoryController extends \Core\Controller {
-  public function index(){
-    $cats = $this->model('Category')->allTree();
-    $this->view('admin/categories_index', ['cats'=>$cats], 'admin');
-  }
-  public function create(){ $parents = $this->model('Category')->parents(); $this->view('admin/categories_form', ['parents'=>$parents], 'admin'); }
-  public function store(){
-    $name = trim($_POST['name'] ?? '');
-    $parent = $_POST['parent_id'] ?? null;
-    if($name===''){ $_SESSION['flash']=['type'=>'error','msg'=>'Name required']; return header('Location:/Category/create'); }
-    $this->model('Category')->create($name, $parent ?: null);
-    $_SESSION['flash']=['type'=>'success','msg'=>'Category created']; header('Location:/Category/index');
-  }
-  public function edit($id){ $cat=$this->model('Category')->find($id); $parents=$this->model('Category')->parents($id); $this->view('admin/categories_form',['cat'=>$cat,'parents'=>$parents],'admin'); }
-  public function update($id){ $this->model('Category')->update($id, $_POST['name'], $_POST['parent_id'] ?: null); $_SESSION['flash']=['type'=>'success','msg'=>'Updated']; header('Location:/Category/index'); }
-  public function destroy($id){ $this->model('Category')->delete($id); $this->json(['ok'=>true]); }
-}
+Footer partial (app/Views/partials/footer.php):
+-----------------------------------------------
+<footer class="footer">
+  <section class="container">
+    <div>&copy; <?= date('Y') ?> MyMiniShop</div>
+    <nav>
+      <a href="/about">About</a> | <a href="/contact">Contact</a> | <a href="/policy">Policy</a>
+    </nav>
+  </section>
+</footer>
 
-ProductController.php (CRUD + upload)
--------------------------------------
-class ProductController extends \Core\Controller {
-  public function index(){ $rows=$this->model('Product')->all(); $this->view('admin/products_index',['rows'=>$rows],'admin'); }
-  public function create(){ $cats=$this->model('Category')->allTree(); $this->view('admin/products_form',['cats'=>$cats],'admin'); }
-  public function store(){
-    $p = $_POST;
-    $img = $_FILES['image'] ?? null;
-    $path = null;
-    if($img && $img['tmp_name']){
-      $ext = strtolower(pathinfo($img['name'], PATHINFO_EXTENSION));
-      if(!in_array($ext,['jpg','jpeg','png','webp'])){ $_SESSION['flash']=['type'=>'error','msg'=>'Invalid image']; return header('Location:/Product/create'); }
-      $fname = uniqid('p_').'.'.$ext;
-      move_uploaded_file($img['tmp_name'], __DIR__.'/../../public/uploads/'.$fname);
-      $path = '/public/uploads/'.$fname;
-    }
-    $this->model('Product')->create($p['name'],$p['slug'],$p['category_id'],$p['price'],$p['stock'],$p['description'],$path,$p['status']??1);
-    $_SESSION['flash']=['type'=>'success','msg'=>'Product created']; header('Location:/Product/index');
-  }
-  public function destroy($id){ $this->model('Product')->delete($id); $this->json(['ok'=>true]); }
-}
-
-CartController.php (session cart)
----------------------------------
-class CartController extends \Core\Controller {
-  public function index(){
-    $cart = $_SESSION['cart'] ?? [];
-    $ids = array_column($cart,'product_id');
-    $products = $this->model('Product')->byIds($ids);
-    $this->view('user/cart',['cart'=>$cart,'products'=>$products]);
-  }
-  public function add(){
-    $pid = (int)($_POST['product_id'] ?? 0);
-    $qty = max(1,(int)($_POST['qty'] ?? 1));
-    $_SESSION['cart'] = $_SESSION['cart'] ?? [];
-    // merge quantities
-    $found=false;
-    foreach($_SESSION['cart'] as &$item){ if($item['product_id']===$pid){ $item['qty']+=$qty; $found=true; break; } }
-    if(!$found){ $_SESSION['cart'][]=['product_id'=>$pid,'qty'=>$qty]; }
-    $this->json(['ok'=>true,'count'=>array_sum(array_column($_SESSION['cart'],'qty'))]);
-  }
-  public function remove(){ $pid=(int)$_POST['product_id']; $_SESSION['cart']=array_values(array_filter($_SESSION['cart'],fn($i)=>$i['product_id']!=$pid)); $this->json(['ok'=>true]); }
-  public function checkout(){ $this->view('user/checkout'); }
-}
-
-OrderController.php (place + payment)
--------------------------------------
-class OrderController extends \Core\Controller {
-  public function place(){
-    // validate customer info
-    $name=trim($_POST['name']); $email=trim($_POST['email']); $addr=trim($_POST['address']);
-    $cart=$_SESSION['cart'] ?? [];
-    if(!$cart){ $_SESSION['flash']=['type'=>'error','msg'=>'Cart is empty']; return header('Location:/Cart/index'); }
-    // price calc
-    $ids = array_column($cart,'product_id');
-    $products = $this->model('Product')->byIds($ids); $map=[]; foreach($products as $p){ $map[$p['id']]=$p; }
-    $total = 0; foreach($cart as $c){ $total += $map[$c['product_id']]['price'] * $c['qty']; }
-    // create order + items
-    $orderId = $this->model('Order')->create([
-      'customer_name'=>$name,'customer_email'=>$email,'customer_address'=>$addr,
-      'total_amount'=>$total,'status'=>'Pending','payment_provider'=>'Razorpay'
-    ]);
-    foreach($cart as $c){
-      $this->model('OrderItem')->create($orderId, $c['product_id'], $c['qty'], $map[$c['product_id']]['price']);
-    }
-    // Create Razorpay order server‑side (pseudo code)
-    // $rz = new Razorpay\Api\Api(KEY, SECRET);
-    // $rzOrder = $rz->order->create(['amount'=>intval($total*100),'currency'=>'INR','receipt'=>(string)$orderId]);
-    // $this->model('Order')->attachGatewayRef($orderId,$rzOrder->id);
-    $_SESSION['current_order_id'] = $orderId;
-    header('Location:/Order/summary/'.$orderId);
-  }
-  public function summary($id){
-    $order = $this->model('Order')->findWithItems($id);
-    $this->view('user/order_summary',['order'=>$order]);
-  }
-  public function paymentSuccess(){ /* verify signature, mark Paid, clear cart */ }
-}
-
-
-8) Models (examples)
---------------------
-Category.php
-------------
-class Category extends \Core\Model {
-  public function create($name,$parent_id){ $st=$this->db->prepare("INSERT INTO categories(name,parent_id) VALUES(?,?)"); $st->execute([$name,$parent_id]); }
-  public function allTree(){
-    $rows = $this->db->query("SELECT * FROM categories ORDER BY parent_id IS NOT NULL, name")->fetchAll();
-    return $rows;
-  }
-  public function parents($excludeId=null){
-    if($excludeId){ $st=$this->db->prepare("SELECT * FROM categories WHERE id<>? AND parent_id IS NULL"); $st->execute([$excludeId]); return $st->fetchAll(); }
-    return $this->db->query("SELECT * FROM categories WHERE parent_id IS NULL")->fetchAll();
-  }
-  public function find($id){ $st=$this->db->prepare("SELECT * FROM categories WHERE id=?"); $st->execute([$id]); return $st->fetch(); }
-  public function update($id,$name,$parent){ $st=$this->db->prepare("UPDATE categories SET name=?, parent_id=? WHERE id=?"); $st->execute([$name,$parent,$id]); }
-  public function delete($id){ $st=$this->db->prepare("DELETE FROM categories WHERE id=?"); $st->execute([$id]); }
-}
-
-Product.php
------------
-class Product extends \Core\Model {
-  public function create($name,$slug,$category_id,$price,$stock,$description,$image,$status){
-    $st=$this->db->prepare("INSERT INTO products(name,slug,category_id,price,stock,description,image,status) VALUES(?,?,?,?,?,?,?,?)");
-    $st->execute([$name,$slug,$category_id,$price,$stock,$description,$image,$status]);
-  }
-  public function byIds($ids){
-    if(!$ids) return [];
-    $in = implode(',', array_fill(0,count($ids),'?'));
-    $st=$this->db->prepare("SELECT * FROM products WHERE id IN ($in)");
-    $st->execute($ids);
-    return $st->fetchAll();
-  }
-  public function all(){ return $this->db->query("SELECT p.*, c.name AS category FROM products p JOIN categories c ON c.id=p.category_id ORDER BY p.created_at DESC")->fetchAll(); }
-  public function delete($id){ $st=$this->db->prepare("DELETE FROM products WHERE id=?"); $st->execute([$id]); }
-}
-
-Order.php / OrderItem.php (sketch)
-----------------------------------
-class Order extends \Core\Model {
-  public function create($data){
-    $st=$this->db->prepare("INSERT INTO orders(customer_name,customer_email,customer_address,total_amount,status,payment_provider) VALUES(?,?,?,?,?,?)");
-    $st->execute([$data['customer_name'],$data['customer_email'],$data['customer_address'],$data['total_amount'],$data['status'],$data['payment_provider']]);
-    return $this->db->lastInsertId();
-  }
-  public function attachGatewayRef($orderId,$ref){
-    $st=$this->db->prepare("UPDATE orders SET payment_ref=? WHERE id=?"); $st->execute([$ref,$orderId]);
-  }
-  public function findWithItems($id){
-    $o=$this->db->prepare("SELECT * FROM orders WHERE id=?"); $o->execute([$id]); $order=$o->fetch();
-    $i=$this->db->prepare("SELECT oi.*, p.name FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE order_id=?"); $i->execute([$id]);
-    $order['items']=$i->fetchAll(); return $order;
-  }
-}
-class OrderItem extends \Core\Model {
-  public function create($order_id,$product_id,$qty,$price){
-    $st=$this->db->prepare("INSERT INTO order_items(order_id,product_id,quantity,price) VALUES(?,?,?,?)");
-    $st->execute([$order_id,$product_id,$qty,$price]);
-  }
-}
-
-Customization.php
------------------
-class Customization extends \Core\Model {
-  public function getTheme(){ return $this->db->query("SELECT * FROM customization WHERE id=1")->fetch(); }
-  public function updateTheme($color,$font){ $st=$this->db->prepare("UPDATE customization SET theme_color=?, font_style=? WHERE id=1"); return $st->execute([$color,$font]); }
-}
-
-
-9) Views (key pages, data passing, footer usage)
-------------------------------------------------
-admin/customization.php
------------------------
-<?php include __DIR__.'/../partials/flash.php'; ?>
-<h2>Theme Customization</h2>
-<form method="post" action="/Customization/update">
-  <label>Theme Color</label>
-  <input type="color" name="theme_color" value="<?= htmlspecialchars($theme['theme_color'] ?? '#e11d48') ?>">
-  <label>Font</label>
-  <select name="font_style">
-    <?php foreach(['Poppins','Inter','Roboto','Arial','Times New Roman'] as $f): ?>
-      <option value="<?= $f ?>" <?= ($theme['font_style']??'')===$f?'selected':''; ?>><?= $f ?></option>
-    <?php endforeach; ?>
-  </select>
+Admin theme form (app/Views/admin/settings/theme.php):
+-----------------------------------------------------
+<form method="post" action="/admin/settings/theme">
+  <input type="hidden" name="csrf" value="<?= $csrf ?>">
+  <label>Primary color</label>
+  <input type="color" name="primary" value="<?= e(Setting::get('theme.primary_color','#e11d48')) ?>">
+  <label>Accent color</label>
+  <input type="color" name="accent" value="<?= e(Setting::get('theme.accent_color','#f59e0b')) ?>">
+  <label>Font family</label>
+  <input type="text" name="font" value="<?= e(Setting::get('theme.font_family','Inter, system-ui, sans-serif')) ?>" placeholder="e.g., Poppins, sans-serif">
   <button class="btn-primary">Save</button>
 </form>
 
-user/product_list.php (receives $products)
-------------------------------------------
-<h1>Products</h1>
-<div class="grid">
-  <?php foreach($products as $p): ?>
-  <div class="card">
-    <img src="<?= htmlspecialchars($p['image'] ?: '/public/images/placeholder.png') ?>" alt="">
-    <h3><?= htmlspecialchars($p['name']) ?></h3>
-    <p>₹<?= number_format($p['price'],2) ?></p>
-    <form method="post" action="/Cart/add">
-      <input type="hidden" name="product_id" value="<?= (int)$p['id'] ?>">
-      <button class="btn-primary">Add to Cart</button>
-    </form>
-  </div>
-  <?php endforeach; ?>
-</div>
-
-
-10) Payment Integration (Razorpay sketch)
+SettingsController@themeSave (core idea):
 -----------------------------------------
-Server:
-  - On order creation, call Razorpay Orders API to create an order for (amount * 100).
-  - Store returned order_id in orders.payment_ref.
+public function themeSave() {
+  $this->requireCsrf($_POST['csrf'] ?? '');
+  Setting::set('theme.primary_color', $_POST['primary'] ?? '#e11d48');
+  Setting::set('theme.accent_color', $_POST['accent'] ?? '#f59e0b');
+  Setting::set('theme.font_family', $_POST['font'] ?? 'Inter, system-ui, sans-serif');
+  flash('Settings saved.');
+  $this->redirect('/admin/settings/theme');
+}
 
-Client (checkout/summary view):
-  - Load Razorpay JS.
-  - Pass key_id, amount, currency, order_id (server made), customer name/email.
-  - On success, post payment_id + signature to /Order/paymentSuccess
-  - On failure, show error and allow retry.
+--------------------------------------------------------------------------------
+8) SECURITY & MIDDLEWARE
+--------------------------------------------------------------------------------
+- CSRF: store token in session, inject hidden input in forms, validate on POST.
+- Auth: session-based. Only admins can access /admin/* routes.
+- Input validation: filter_var, custom validators, length checks, mime checks on upload.
+- XSS: escape outputs (htmlspecialchars). For rich text, use a sanitizer.
+- SQLi: prepared statements only (PDO).
+- File uploads: limit size, mime; randomize basename; disallow PHP execution in /uploads.
+- Rate limit (basic): throttle POST per IP (optional).
+- CORS: not needed for same-origin, configure if gateway webhook external origin.
 
-Server verify:
-  - Verify signature using secret.
-  - If valid → set orders.payment_status='Paid', status='Paid'
-  - Reduce product stock, clear session cart.
-  - Redirect to /Order/summary/{id}?paid=1
+Middleware hooks:
+-----------------
+- AuthMiddleware (for /admin routes)
+- ThemeMiddleware (read settings, cache into memory/file for fast access)
+- CsrfMiddleware (on mutating requests)
 
+--------------------------------------------------------------------------------
+9) PAYMENT GATEWAY FLOW (RAZORPAY/STRIPE READY)
+--------------------------------------------------------------------------------
+1) On confirm order:
+   - Create order (status='pending'), insert payments row (status='created')
+   - For Razorpay: create a "razorpay order" via server SDK (amount * 100 paise)
+   - Render checkout form with order id + amount + key
 
-11) Security & Validation Checklist
------------------------------------
-[ ] Use prepared statements everywhere (PDO)
-[ ] Sanitize output via htmlspecialchars()
-[ ] CSRF: add hidden token on forms, verify on POST
-[ ] Validate uploaded images by mime + extension + size
-[ ] Store hashed passwords (password_hash/password_verify)
-[ ] Restrict admin routes: if(!isset($_SESSION['admin_id'])) redirect to /Auth/login
-[ ] Never trust JS only; keep server‑side validation authoritative
-[ ] Hide /public/uploads listing with an .htaccess or serve via PHP if sensitive
+2) On successful payment in frontend:
+   - Gateway returns payment_id + signature
+   - POST to /payment/verify with these fields
+   - Server verifies signature → update payments.status='captured', orders.status='paid'
+   - Reduce stock, clear cart
 
+3) Webhook (highly recommended):
+   - Configure gateway to call /payment/webhook on "payment.captured"
+   - Verify signature, idempotently update payment + order
 
-12) Routes (pragmatic list)
----------------------------
-GET  /                      → UserController@home
-GET  /User/products         → UserController@products
-GET  /User/product/{slug}   → UserController@show
+4) Failure:
+   - Mark payments.status='failed', orders.status='failed' or stay 'pending'
+   - Show retry button
 
-POST /Cart/add              → CartController@add
-POST /Cart/remove           → CartController@remove
-GET  /Cart/index            → CartController@index
-GET  /Cart/checkout         → CartController@checkout
+Idempotency tips:
+-----------------
+- Unique constraint on payments.gateway_payment_id
+- Check current status before transitioning (no double-capture)
+- Wrap critical updates in transactions
 
-POST /Order/place           → OrderController@place
-GET  /Order/summary/{id}    → OrderController@summary
-POST /Order/paymentSuccess  → OrderController@paymentSuccess
+--------------------------------------------------------------------------------
+10) FRONTEND INTERACTIONS (USER)
+--------------------------------------------------------------------------------
+AJAX examples:
+--------------
+Add to cart (jQuery):
+$.post('/cart/add', { product_id: 123, qty: 1, csrf: window.CSRF }, function (res) {
+  if (res.ok) { $('#cartCount').text(res.cartCount); toast('Added!'); }
+  else { alert(res.msg); }
+}, 'json');
 
-GET  /Auth/login            → AuthController@login (GET)
-POST /Auth/login            → AuthController@login (POST)
-GET  /Auth/logout           → AuthController@logout
+Update cart qty:
+$.post('/cart/update', { product_id: 123, qty: 2, csrf: window.CSRF }, function (res) {
+  // re-render cart line totals
+}, 'json');
 
-# Admin
-GET  /Admin/dashboard       → AdminController@dashboard
-GET  /Category/index        → CategoryController@index
-GET  /Category/create       → CategoryController@create
-POST /Category/store        → CategoryController@store
-GET  /Category/edit/{id}    → CategoryController@edit
-POST /Category/update/{id}  → CategoryController@update
-POST /Category/destroy/{id} → CategoryController@destroy (AJAX JSON)
+Server responses: always JSON with {ok:boolean, msg?:string, ...data}
 
-GET  /Product/index         → ProductController@index
-GET  /Product/create        → ProductController@create
-POST /Product/store         → ProductController@store
-POST /Product/destroy/{id}  → ProductController@destroy
+--------------------------------------------------------------------------------
+11) ADMIN CRUD DETAILS
+--------------------------------------------------------------------------------
+Category:
+- Fields: name, parent_id, slug, is_active
+- Validation: required name, slug unique, parent!=self
+- Tree display: list with indentation (compute via recursion)
 
-GET  /Order/index           → OrderController@adminIndex    # list orders (optional)
-POST /Order/status/{id}     → OrderController@updateStatus  # change status
+Product:
+- Fields: category_id, name, slug, description, price, discount_percent, stock, image
+- Images: store in /public/assets/uploads; save filename only
+- Validation: numeric ranges, stock>=0, discount 0-90
 
-GET  /Customization/index   → CustomizationController@index
-POST /Customization/update  → CustomizationController@update
+Order management:
+- List with filters (status, date range, user)
+- Show order detail with items
+- Update status (paid/shipped/delivered/cancelled), add note (optional)
+- Refund flow: record in payments table or separate refunds table (optional)
 
+--------------------------------------------------------------------------------
+12) THEME APPLICATION STRATEGY
+--------------------------------------------------------------------------------
+- At request start (ThemeMiddleware), read settings (from cache) and set:
+  $GLOBALS['theme'] = ['primary'=>'#e11d48', ...]
+- In layout head, include theme-vars partial (CSS variables)
+- In CSS (app.css), rely on var(--color-primary) for buttons/links
+- For fonts, either host webfont or use Google Fonts link conditionally
+- Provide reset-to-default button in admin
 
-13) Implementation Order (Do this in sequence)
-----------------------------------------------
-1) Bootstrap core (index.php, .htaccess, core/*, config/*)
-2) Build layouts (user_header/footer, admin_header/footer) so every page already has a footer.
-3) Category model + controller + basic CRUD (no JS first)
-4) Product model + controller + image upload
-5) User listing pages (home/product_list/details)
-6) Session cart + cart page + update/remove
-7) Checkout → place order → summary page (no payments yet)
-8) Razorpay order creation + success callback
-9) Admin order management (status updates)
-10) Customization (theme.php) + admin page to change color/font
-11) Polish: CSRF, flash messages, validation errors, 404, empty states
-12) Optional: pagination, search, user accounts, order history
+--------------------------------------------------------------------------------
+13) REUSABLE FOOTER (HOW TO ADD)
+--------------------------------------------------------------------------------
+- Keep all pages using the layout system (View::render).
+- Footer is included in app.php and admin.php layouts via `include`.
+- For isolated pages that skip layouts, you can include footer directly:
+  <?php include VIEW_PATH.'/partials/footer.php'; ?>
+- Any change in footer.php reflects everywhere — no duplication.
 
+--------------------------------------------------------------------------------
+14) ENV & CONFIG
+--------------------------------------------------------------------------------
+.env example:
+-------------
+APP_ENV=local
+APP_URL=http://localhost:8000
+DB_HOST=127.0.0.1
+DB_NAME=mini_shop
+DB_USER=root
+DB_PASS=
+PAY_RAZORPAY_KEY=rzp_test_xxx
+PAY_RAZORPAY_SECRET=xxx
 
-14) Notes on Footer/Header Reuse
---------------------------------
-- The Controller->view() method wraps every view with the appropriate header/footer.
-- To add a component to all pages (like a notice bar or a new script), edit only app/views/layouts/*_footer.php or *_header.php — not every page.
-- For page‑specific assets, pass variables in $data and conditionally include in header.
+app/config/app.php reads .env and exposes config().
 
-Example:
-$this->view('user/product_list', ['title'=>'All Products']);
-In header: <title><?= isset($title)?$title:'Shop' ?></title>
+--------------------------------------------------------------------------------
+15) QUICK START CHECKLIST
+--------------------------------------------------------------------------------
+[ ] Create DB and run SQL schema
+[ ] Set DocumentRoot to /public
+[ ] Configure .env
+[ ] Implement Core classes (App, Controller, Model, View, Auth)
+[ ] Implement Router table in App.php
+[ ] Build Auth (login/logout) & AdminMiddleware
+[ ] CRUD: Category, Product
+[ ] Cart session logic + totals
+[ ] Order create + items + payment row
+[ ] Payment init + verify + webhook
+[ ] Theme settings + CSS variables
+[ ] Layouts + partials (header/footer/flash)
+[ ] Basic styles + pagination + validation
+[ ] Test end-to-end happy path
+[ ] Test failure paths (stock, payment fail, CSRF)
 
+--------------------------------------------------------------------------------
+16) OPTIONAL ENHANCEMENTS
+--------------------------------------------------------------------------------
+- Elastic search-like product search (MySQL FULLTEXT)
+- Coupons table + application
+- Address book for users
+- Email notifications (order placed, shipped)
+- Expose REST API for SPA/mobile
+- Role-based permissions (editor vs admin)
+- Sitemaps + OpenGraph tags
+- Queued jobs for webhooks/emails
 
-15) Minimal CSS Hints
----------------------
-public/css/base.css
--------------------
-*{box-sizing:border-box} body{margin:0;background:#f9fafb;color:#111827;line-height:1.5}
-.container{width:min(1100px,92%);margin:0 auto}
-.nav{display:flex;gap:1rem;padding:.8rem 0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}
-.card{border:1px solid #e5e7eb;border-radius:.6rem;padding:1rem;background:#fff}
-.footer{margin-top:2rem;padding:1rem;border-top:1px solid #e5e7eb;text-align:center}
+--------------------------------------------------------------------------------
+17) MINIMAL FRONT CONTROLLER (public/index.php) — SNIPPET
+--------------------------------------------------------------------------------
+<?php
+require __DIR__.'/../app/bootstrap.php'; // autoload, env, constants
+use App\Core\App;
+$app = new App();
+$app->run();
 
+// In App::run(): parse REQUEST_URI, match to routes, call Controller@action,
+// pass URL parameters, wrap in try/catch, render 404 for unknown routes.
 
-16) Testing Tips
-----------------
-- Seed a few categories (Fashion, Electronics; sub: Shirts, T‑Shirts).
-- Add products with small webp images.
-- Try guest checkout to keep scope small.
-- Use Razorpay test keys; watch for INR paise (amount*100).
-- Log failures to storage/logs/app.log (file_put_contents with FILE_APPEND).
+--------------------------------------------------------------------------------
+18) TESTING STRATEGY
+--------------------------------------------------------------------------------
+- Unit test Models with an in-memory/test DB
+- HTTP tests via PHP built-in server + curl
+- Mock gateway in local (fake responses)
+- Validate CSRF works on every POST
+- Verify admin-only routes blocked for non-admin
 
+--------------------------------------------------------------------------------
+19) WHAT TO DELIVER (FOR YOUR MINI PROJECT SUBMISSION)
+--------------------------------------------------------------------------------
+- Source code with the structure above
+- SQL file for schema
+- A README (these instructions condensed)
+- Admin credentials (seed: admin@example.com / password)
+- Demo screenshots (admin CRUD, theme page, cart, payment)
+- Short video (optional): 2–3 minutes walkthrough
 
-17) What To Commit Early
-------------------------
-[ ] .htaccess + index.php + core/* + config/*
-[ ] layouts + flash partial
-[ ] Category CRUD
-[ ] Product CRUD
-[ ] Session cart
-[ ] Order create + summary
-[ ] Payment callbacks (stub ok)
-[ ] Customization theme.php + admin form
-[ ] README with setup instructions
-
-
-18) Setup Instructions (quick)
-------------------------------
-1. Create DB `ecommerce` and run the SQL in section 2.
-2. Set config/database.php credentials.
-3. Point your local vhost document root to the project root (or to public/ and adjust includes).
-4. Ensure /public/uploads is writable.
-5. Insert an admin:
-   INSERT INTO admins(username,password) VALUES('admin', PASSWORD('yourStrong#Pass'));
-   # Or in PHP: password_hash('yourStrong#Pass', PASSWORD_DEFAULT)
-6. Visit /Auth/login → login → /Admin/dashboard.
-7. Add categories/products, then open /User/products.
-8. Set theme in /Customization/index and watch the site update via theme.php.
-
-
-End of file.
+Good luck & have fun building!
