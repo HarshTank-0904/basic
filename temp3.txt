@@ -1,0 +1,121 @@
+
+CLASSIC MINIMALISTIC E-COMMERCE LAYOUT (WIREFRAME + COLORS)
+============================================================
+
+1) DESIGN GOALS
+---------------
+✔ Clean and classic layout  
+✔ Minimalistic, no clutter  
+✔ Aesthetic spacing, soft typography  
+✔ Easy to extend (header, footer, sidebar, product grid)
+
+2) PAGE LAYOUT WIREFRAME (TEXT FORMAT)
+---------------------------------------
+
+---------------------------------------------------------
+| Logo          | Search Bar            | Cart | Profile |
+---------------------------------------------------------
+| Navbar: Home | Categories | Offers | Contact | About   |
+---------------------------------------------------------
+| (Optional) Breadcrumbs: Home > Category > Product      |
+---------------------------------------------------------
+| Sidebar (Filters)   |   Main Content Area              |
+| - Categories        |   -----------------------------  |
+| - Price Range       |   | Product Grid (3 / 4 cols) | |
+| - Colors            |   | [Product Card]            | |
+| - Sizes             |   | [Product Card]            | |
+|                     |   | [Product Card]            | |
+|                     |   -----------------------------  |
+|                     |   Pagination: 1 2 3 Next >       |
+---------------------------------------------------------
+
+| ------------------ Full Width Footer ------------------ |
+|  © 2025 MyShop | Terms | Privacy | Help | Social Icons |
+---------------------------------------------------------
+
+
+3) PRODUCT CARD DESIGN (TEXT MOCKUP)
+------------------------------------
++----------------------------------+
+| [Product Image]                  |
+| Product Name                     |
+| ★★★★☆ (Reviews)                 |
+| ₹ 599   ~₹ 799~ (20% OFF)        |
+| [ Add to Cart ]  [ ❤️ Wish ]     |
++----------------------------------+
+
+4) PRODUCT DETAIL PAGE WIREFRAME
+--------------------------------
+-------------------------------------------------------------
+| [Large Product Image] | Product Name                     |
+|                       | ★★★★☆ 120 Reviews               |
+|                       | Price: ₹ 599 ~₹799~ (20% OFF)   |
+|                       | Select Size: S M L XL           |
+|                       | Select Color: ● ● ●             |
+|                       | [ Add to Cart ] [ Buy Now ]     |
+-------------------------------------------------------------
+| Description Tab | Reviews Tab | Additional Info Tab      |
+-------------------------------------------------------------
+| Recommended Products (Carousel/Grid)                     |
+-------------------------------------------------------------
+
+5) ADMIN DASHBOARD LAYOUT (WIREFRAME)
+--------------------------------------
+---------------------------------------------------------
+| Sidebar (Left)             | Top Bar (Right Area)     |
+| - Dashboard                | Notifications | Profile  |
+| - Categories               --------------------------- |
+| - Products                 | Main Content Panel       |
+| - Orders                   | - Stats Cards (4)        |
+| - Theme Settings           | - Orders Overview        |
+| - Logout                   | - Sales Graph (optional) |
+---------------------------------------------------------
+
+6) CLASSIC COLOR PALETTE (SUGGESTED)
+-------------------------------------
+Primary Colors:
+- Deep Navy Blue        → #1E293B
+- Burgundy / Wine Red   → #7D1128
+- Classic Black         → #111827
+- Royal Deep Green      → #064E3B
+
+Accent / Highlight:
+- Gold / Mustard        → #EAB308
+- Soft Peach            → #F5C2C7
+- Light Blue Tint       → #93C5FD
+
+Neutral / Background:
+- Off White             → #F8FAFC
+- Light Gray            → #E5E7EB
+- Medium Gray (Text)    → #6B7280
+
+-------------------------------------
+EXAMPLE THEME COMBINATION:
+-------------------------------------
+Primary:        #7D1128 (Burgundy)
+Accent:         #EAB308 (Gold)
+Text Color:     #1E293B (Dark Navy)
+Background:     #F8FAFC (Off White)
+Card BG:        #FFFFFF (White)
+Borders:        #E5E7EB (Light Gray)
+
+Font Suggestion:
+- Playfair Display (Headers - Elegant Serif)
+- Inter / Poppins / Lato (Clean Sans-serif body)
+
+7) RESPONSIVE RULES
+-------------------
+✔ Mobile: Collapsible hamburger menu, 2-column product grid  
+✔ Tablet: 3-column grid, fixed header  
+✔ Desktop: 4-column grid + sidebar visible  
+
+8) FILE STRUCTURE REFERENCE FOR LAYOUT (MVC VIEW SIDE)
+-------------------------------------------------------
+app/Views/layouts/app.php        → Header + Footer + Main Wrapper  
+app/Views/partials/header.php    → Logo + Nav + Search  
+app/Views/partials/footer.php    → Footer Content  
+app/Views/product/list.php       → Product Listing (grid)  
+app/Views/product/detail.php     → Product Details Page  
+
+-------------------------------------------------------
+END OF FILE (You can directly use this as design guide)
