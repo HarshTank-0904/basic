@@ -1,52 +1,163 @@
-CREATE TABLE login_attempts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ip_address VARCHAR(50),
-    attempts INT DEFAULT 0,
-    last_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
 
+E-Commerce Mini Project (MVC Structure)
 
-<?php
-session_start();
-$conn = new mysqli("localhost", "root", "", "test_db");
+1. Project Structure (File/Folder)
+----------------------------------
+project/
+├── config/
+│   └── config.php        # Database connection settings
+├── controllers/
+│   ├── AdminController.php
+│   ├── CategoryController.php
+│   ├── ProductController.php
+│   ├── OrderController.php
+│   ├── UserController.php
+│   └── CartController.php
+├── models/
+│   ├── Admin.php
+│   ├── Category.php
+│   ├── Product.php
+│   ├── Order.php
+│   ├── User.php
+│   └── Cart.php
+├── views/
+│   ├── admin/
+│   │   ├── login.php
+│   │   ├── categories.php
+│   │   ├── products.php
+│   │   ├── orders.php
+│   │   └── settings.php
+│   ├── user/
+│   │   ├── home.php
+│   │   ├── product_list.php
+│   │   ├── cart.php
+│   │   └── order_summary.php
+│   └── partials/
+│       ├── header.php
+│       ├── footer.php
+│       └── navbar.php
+├── public/
+│   ├── css/
+│   ├── js/
+│   └── index.php
+└── assets/               # Images, fonts, etc.
 
-$ip = $_SERVER['REMOTE_ADDR'];
-$timeoutMinutes = 5;
-$maxAttempts = 5;
+2. Database Tables
+-------------------
+Table: admins
+- id (PK)
+- username
+- password
+- email
 
-// Check if IP exists in login_attempts table
-$res = $conn->query("SELECT * FROM login_attempts WHERE ip_address='$ip'");
-$row = $res->fetch_assoc();
+Table: categories
+- id (PK)
+- name
+- parent_id (FK to categories.id)  // For subcategories
 
-if ($row) {
-    $attempts = $row['attempts'];
-    $last = strtotime($row['last_attempt']);
-    $now = time();
+Table: products
+- id (PK)
+- category_id (FK)
+- name
+- description
+- price
+- stock
+- image
 
-    // If attempts reached max and within timeout
-    if ($attempts >= $maxAttempts && ($now - $last) < ($timeoutMinutes * 60)) {
-        die("Too many failed attempts. Try again after 5 minutes.");
-    }
-}
+Table: users
+- id (PK)
+- name
+- email
+- password
+- address
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $username = $_POST["username"];
-    $password = $_POST["password"];
+Table: cart
+- id (PK)
+- user_id (FK)
+- product_id (FK)
+- quantity
 
-    $result = $conn->query("SELECT * FROM users WHERE username='$username' AND password='$password'");
+Table: orders
+- id (PK)
+- user_id (FK)
+- total_amount
+- payment_status
+- order_status
+- created_at
 
-    if ($result->num_rows == 1) {
-        // Login success → reset attempts
-        $conn->query("DELETE FROM login_attempts WHERE ip_address='$ip'");
-        echo "Login Successful!";
-    } else {
-        // Fail → increase count
-        if ($row) {
-            $conn->query("UPDATE login_attempts SET attempts=attempts+1, last_attempt=NOW() WHERE ip_address='$ip'");
-        } else {
-            $conn->query("INSERT INTO login_attempts(ip_address, attempts) VALUES('$ip', 1)");
-        }
-        echo "Invalid credentials!";
-    }
-}
-?>
+Table: order_items
+- id (PK)
+- order_id (FK)
+- product_id (FK)
+- quantity
+- price
+
+Table: settings
+- id (PK)
+- theme_color
+- font_style
+
+3. Implementation Steps / Algorithm
+------------------------------------
+Admin Side:
+1. Admin Login:
+   - Display login form.
+   - Verify credentials against 'admins' table.
+   - Start session after login.
+
+2. Category Management:
+   - Form to add new category/subcategory.
+   - Update and delete options.
+   - Save in 'categories' table.
+
+3. Product Management:
+   - Form for adding product with image upload.
+   - Edit and delete product.
+   - Save in 'products' table.
+
+4. Order Management:
+   - Fetch data from 'orders' and 'order_items' table.
+   - Change order status: processing, shipped, delivered.
+
+5. Payment Gateway Integration:
+   - Use Razorpay, PayPal, Stripe API.
+   - Save payment status in 'orders' table.
+
+6. Customization (Color/Font):
+   - Form to select theme color and font.
+   - Save in 'settings' table.
+   - Load dynamically using CSS variables.
+
+User Side:
+1. Display Product List:
+   - Fetch from 'products' table.
+   - Display by category/subcategory.
+
+2. Add to Cart:
+   - Add selected product to 'cart' table.
+   - Show total items in navbar.
+
+3. Order Summary:
+   - Display selected products from cart.
+   - Show total price and details.
+
+4. Order Confirmation:
+   - Ask user to confirm details.
+   - Save in 'orders' table.
+   - Redirect to payment gateway.
+
+5. After Payment:
+   - Verify payment status.
+   - Clear cart table after successful payment.
+
+4. MVC Flow Example (Add to Cart)
+-----------------------------------
+User clicks "Add to Cart" -> CartController calls model Cart.php -> Inserts data to 'cart' table -> Redirects to cart.php view.
+
+5. Important Notes
+---------------------
+- Use sessions for login & cart.
+- Validate data at server-side.
+- Use CSRF token for secure forms.
+- Use PDO for secure queries.
+- Follow naming conventions.
