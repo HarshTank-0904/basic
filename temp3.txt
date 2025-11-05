@@ -1,3 +1,23 @@
+project/
+│
+├── config/
+│   └── db.php     ✅ Database connection using MySQLi
+│
+├── models/
+│   └── CategoryModel.php   ✅ All database queries here
+│
+├── controllers/
+│   └── CategoryController.php  ✅ Handles user actions & AJAX response
+│
+├── views/
+│   └── category_view.php   ✅ Frontend UI (HTML + AJAX Forms)
+│
+├── public/
+│   └── category.js         ✅ All AJAX requests (Add/Edit/Delete)
+│
+└── index.php               ✅ Entry file
+
+
 <?php
 class CategoryModel {
     private $conn;
