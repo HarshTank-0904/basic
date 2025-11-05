@@ -78,7 +78,7 @@ public function getNestedCategories($parent_id = NULL, $level = 0) {
     return $data;
 }
 
-$categories = $model->getNestedCategories(); 
+
 
 
 }
@@ -113,7 +113,7 @@ if (isset($_POST['action'])) {
     exit;
 }
 
-$categories = $model->getAll();
+$categories = $model->getNestedCategories(); 
 ?>
 
 
