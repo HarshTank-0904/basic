@@ -1,157 +1,160 @@
 <?php
-/*************************************
- SIMPLE CATEGORY CRUD (Single File)
- Parent + Child Category System
-**************************************/
+class CategoryModel {
+    private $conn;
 
-// DB CONNECTION
-$host = "localhost";
-$user = "root";
-$pass = "";
-$dbname = "test_db"; // Change this to your DB name
+    public function __construct($db) {
+        $this->conn = $db;
+        $this->createTable();
+    }
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("DB Connection Failed: " . $e->getMessage());
-}
+    private function createTable() {
+        $sql = "CREATE TABLE IF NOT EXISTS categories (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            parent_id INT NULL,
+            name VARCHAR(150) NOT NULL,
+            slug VARCHAR(200) UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )";
+        $this->conn->query($sql);
+    }
 
-// CREATE TABLE IF NOT EXISTS
-$pdo->exec("
-CREATE TABLE IF NOT EXISTS categories (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    parent_id INT NULL,
-    name VARCHAR(150) NOT NULL,
-    slug VARCHAR(200) UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-");
+    public function getAll() {
+        $result = $this->conn->query("SELECT * FROM categories ORDER BY parent_id ASC, name ASC");
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
 
-// Function to get all categories
-function getCategories($pdo) {
-    $stmt = $pdo->query("SELECT * FROM categories ORDER BY parent_id ASC, name ASC");
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+    public function insert($name, $parent) {
+        $slug = strtolower(str_replace(" ", "-", $name));
+        $stmt = $this->conn->prepare("INSERT INTO categories(name, parent_id, slug) VALUES (?, ?, ?)");
+        $stmt->bind_param("sis", $name, $parent, $slug);
+        return $stmt->execute();
+    }
 
-// INSERT CATEGORY
-if (isset($_POST['add'])) {
-    $name = $_POST['name'];
-    $parent = !empty($_POST['parent_id']) ? $_POST['parent_id'] : NULL;
-    $slug = strtolower(str_replace(" ", "-", $name));
-    $stmt = $pdo->prepare("INSERT INTO categories(name, parent_id, slug) VALUES (?, ?, ?)");
-    $stmt->execute([$name, $parent, $slug]);
-    header("Location: category_crud.php");
-}
+    public function delete($id) {
+        $stmt = $this->conn->prepare("DELETE FROM categories WHERE id=?");
+        $stmt->bind_param("i", $id);
+        return $stmt->execute();
+    }
 
-// DELETE CATEGORY
-if (isset($_GET['delete'])) {
-    $id = $_GET['delete'];
-    $pdo->prepare("DELETE FROM categories WHERE id=?")->execute([$id]);
-    header("Location: category_crud.php");
-}
-
-// EDIT CATEGORY - Fetch Data
-$editData = null;
-if (isset($_GET['edit'])) {
-    $stmt = $pdo->prepare("SELECT * FROM categories WHERE id=?");
-    $stmt->execute([$_GET['edit']]);
-    $editData = $stmt->fetch(PDO::FETCH_ASSOC);
-}
-
-// UPDATE CATEGORY
-if (isset($_POST['update'])) {
-    $name = $_POST['name'];
-    $parent = !empty($_POST['parent_id']) ? $_POST['parent_id'] : NULL;
-    $id = $_POST['id'];
-    $slug = strtolower(str_replace(" ", "-", $name));
-
-    $stmt = $pdo->prepare("UPDATE categories SET name=?, parent_id=?, slug=? WHERE id=?");
-    $stmt->execute([$name, $parent, $slug, $id]);
-    header("Location: category_crud.php");
-}
-
-$categories = getCategories($pdo);
-
-// Function to show category dropdown with indentation
-function showCategoryOptions($categories, $parent_id = NULL, $level = 0, $selected = null) {
-    foreach ($categories as $cat) {
-        if ($cat['parent_id'] == $parent_id) {
-            $indent = str_repeat("&nbsp;&nbsp;&nbsp;", $level);
-            $isSelected = ($selected == $cat['id']) ? "selected" : "";
-            echo "<option value='{$cat['id']}' $isSelected>{$indent}" . ($level ? "↳ " : "") . "{$cat['name']}</option>";
-            showCategoryOptions($categories, $cat['id'], $level + 1, $selected);
-        }
+    public function update($id, $name, $parent) {
+        $slug = strtolower(str_replace(" ", "-", $name));
+        $stmt = $this->conn->prepare("UPDATE categories SET name=?, parent_id=?, slug=? WHERE id=?");
+        $stmt->bind_param("sisi", $name, $parent, $slug, $id);
+        return $stmt->execute();
     }
 }
 ?>
 
+
+
+
+//controller
+<?php
+require_once "../config/db.php";
+require_once "../models/CategoryModel.php";
+
+$db = new Database();
+$model = new CategoryModel($db->conn);
+
+if (isset($_POST['action'])) {
+    if ($_POST['action'] == "add") {
+        $model->insert($_POST['name'], $_POST['parent_id'] ?: NULL);
+        echo "Category Added";
+    }
+
+    if ($_POST['action'] == "update") {
+        $model->update($_POST['id'], $_POST['name'], $_POST['parent_id'] ?: NULL);
+        echo "Category Updated";
+    }
+
+    if ($_POST['action'] == "delete") {
+        $model->delete($_POST['id']);
+        echo "Category Deleted";
+    }
+    exit;
+}
+
+$categories = $model->getAll();
+?>
+
+
+//view
+<?php require "../controllers/CategoryController.php"; ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Category CRUD (Parent + Child)</title>
-    <style>
-        body { font-family: Arial; margin: 40px; }
-        table { width: 60%; border-collapse: collapse; margin-top: 20px; }
-        table, th, td { border: 1px solid #aaa; padding: 8px; }
-        th { background: #f0f0f0; }
-        form { margin-bottom: 20px; }
-        input, select { padding: 5px; margin: 5px 0; width: 200px; }
-        button { padding: 5px 10px; }
-    </style>
+    <title>Category Management (MVC + AJAX)</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="../public/category.js"></script>
 </head>
 <body>
 
 <h2>Category Management (Parent + Child)</h2>
 
-<!-- ADD / EDIT FORM -->
-<form method="POST">
-    <input type="hidden" name="id" value="<?= $editData['id'] ?? '' ?>">
-    <label>Category Name:</label><br>
-    <input type="text" name="name" required value="<?= $editData['name'] ?? '' ?>"><br>
+<form id="categoryForm">
+    <input type="hidden" name="id" id="cat_id">
+    <input type="text" name="name" id="name" required placeholder="Category Name">
 
-    <label>Parent Category:</label><br>
-    <select name="parent_id">
-        <option value="">-- Root / No Parent --</option>
-        <?php showCategoryOptions($categories, NULL, 0, $editData['parent_id'] ?? null); ?>
-    </select><br>
+    <select name="parent_id" id="parent_id">
+        <option value="">-- Root Category --</option>
+        <?php foreach ($categories as $cat): ?>
+            <option value="<?= $cat['id'] ?>"><?= $cat['name'] ?></option>
+        <?php endforeach; ?>
+    </select>
 
-    <?php if ($editData): ?>
-        <button type="submit" name="update">Update</button>
-        <a href="category_crud.php">Cancel</a>
-    <?php else: ?>
-        <button type="submit" name="add">Add Category</button>
-    <?php endif; ?>
+    <button type="submit">Save</button>
 </form>
 
-<!-- DISPLAY TABLE -->
-<table>
-    <tr>
-        <th>ID</th>
-        <th>Category</th>
-        <th>Parent</th>
-        <th>Actions</th>
-    </tr>
+<table border="1" cellpadding="8">
+    <tr><th>ID</th><th>Name</th><th>Parent</th><th>Actions</th></tr>
     <?php foreach ($categories as $cat): ?>
-        <tr>
-            <td><?= $cat['id'] ?></td>
-            <td>
-                <?= $cat['parent_id'] ? "↳ " : "" ?>
-                <?= $cat['name'] ?>
-            </td>
-            <td>
-                <?php
-                $parent = array_filter($categories, fn($c) => $c['id'] == $cat['parent_id']);
-                echo $parent ? array_values($parent)[0]['name'] : '—';
-                ?>
-            </td>
-            <td>
-                <a href="?edit=<?= $cat['id'] ?>">Edit</a> |
-                <a href="?delete=<?= $cat['id'] ?>" onclick="return confirm('Delete this category?')">Delete</a>
-            </td>
-        </tr>
+    <tr>
+        <td><?= $cat['id'] ?></td>
+        <td><?= $cat['name'] ?></td>
+        <td><?= $cat['parent_id'] ?: '—' ?></td>
+        <td>
+            <button class="editBtn" data-id="<?= $cat['id'] ?>" data-name="<?= $cat['name'] ?>" data-parent="<?= $cat['parent_id'] ?>">Edit</button>
+            <button class="deleteBtn" data-id="<?= $cat['id'] ?>">Delete</button>
+        </td>
+    </tr>
     <?php endforeach; ?>
 </table>
 
 </body>
 </html>
+
+
+
+//ajax
+$(document).on("submit", "#categoryForm", function (e) {
+    e.preventDefault();
+    let action = $("#cat_id").val() ? "update" : "add";
+
+    $.post("../controllers/CategoryController.php", {
+        action: action,
+        id: $("#cat_id").val(),
+        name: $("#name").val(),
+        parent_id: $("#parent_id").val()
+    }, function (response) {
+        alert(response);
+        location.reload();
+    });
+});
+
+$(".editBtn").click(function () {
+    $("#cat_id").val($(this).data("id"));
+    $("#name").val($(this).data("name"));
+    $("#parent_id").val($(this).data("parent"));
+});
+
+$(".deleteBtn").click(function () {
+    if (confirm("Delete this category?")) {
+        $.post("../controllers/CategoryController.php", {
+            action: "delete",
+            id: $(this).data("id")
+        }, function (response) {
+            alert(response);
+            location.reload();
+        });
+});
+});
