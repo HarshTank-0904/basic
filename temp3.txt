@@ -1,121 +1,157 @@
+<?php
+/*************************************
+ SIMPLE CATEGORY CRUD (Single File)
+ Parent + Child Category System
+**************************************/
 
-CLASSIC MINIMALISTIC E-COMMERCE LAYOUT (WIREFRAME + COLORS)
-============================================================
+// DB CONNECTION
+$host = "localhost";
+$user = "root";
+$pass = "";
+$dbname = "test_db"; // Change this to your DB name
 
-1) DESIGN GOALS
----------------
-✔ Clean and classic layout  
-✔ Minimalistic, no clutter  
-✔ Aesthetic spacing, soft typography  
-✔ Easy to extend (header, footer, sidebar, product grid)
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("DB Connection Failed: " . $e->getMessage());
+}
 
-2) PAGE LAYOUT WIREFRAME (TEXT FORMAT)
----------------------------------------
+// CREATE TABLE IF NOT EXISTS
+$pdo->exec("
+CREATE TABLE IF NOT EXISTS categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parent_id INT NULL,
+    name VARCHAR(150) NOT NULL,
+    slug VARCHAR(200) UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+");
 
----------------------------------------------------------
-| Logo          | Search Bar            | Cart | Profile |
----------------------------------------------------------
-| Navbar: Home | Categories | Offers | Contact | About   |
----------------------------------------------------------
-| (Optional) Breadcrumbs: Home > Category > Product      |
----------------------------------------------------------
-| Sidebar (Filters)   |   Main Content Area              |
-| - Categories        |   -----------------------------  |
-| - Price Range       |   | Product Grid (3 / 4 cols) | |
-| - Colors            |   | [Product Card]            | |
-| - Sizes             |   | [Product Card]            | |
-|                     |   | [Product Card]            | |
-|                     |   -----------------------------  |
-|                     |   Pagination: 1 2 3 Next >       |
----------------------------------------------------------
+// Function to get all categories
+function getCategories($pdo) {
+    $stmt = $pdo->query("SELECT * FROM categories ORDER BY parent_id ASC, name ASC");
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
-| ------------------ Full Width Footer ------------------ |
-|  © 2025 MyShop | Terms | Privacy | Help | Social Icons |
----------------------------------------------------------
+// INSERT CATEGORY
+if (isset($_POST['add'])) {
+    $name = $_POST['name'];
+    $parent = !empty($_POST['parent_id']) ? $_POST['parent_id'] : NULL;
+    $slug = strtolower(str_replace(" ", "-", $name));
+    $stmt = $pdo->prepare("INSERT INTO categories(name, parent_id, slug) VALUES (?, ?, ?)");
+    $stmt->execute([$name, $parent, $slug]);
+    header("Location: category_crud.php");
+}
 
+// DELETE CATEGORY
+if (isset($_GET['delete'])) {
+    $id = $_GET['delete'];
+    $pdo->prepare("DELETE FROM categories WHERE id=?")->execute([$id]);
+    header("Location: category_crud.php");
+}
 
-3) PRODUCT CARD DESIGN (TEXT MOCKUP)
-------------------------------------
-+----------------------------------+
-| [Product Image]                  |
-| Product Name                     |
-| ★★★★☆ (Reviews)                 |
-| ₹ 599   ~₹ 799~ (20% OFF)        |
-| [ Add to Cart ]  [ ❤️ Wish ]     |
-+----------------------------------+
+// EDIT CATEGORY - Fetch Data
+$editData = null;
+if (isset($_GET['edit'])) {
+    $stmt = $pdo->prepare("SELECT * FROM categories WHERE id=?");
+    $stmt->execute([$_GET['edit']]);
+    $editData = $stmt->fetch(PDO::FETCH_ASSOC);
+}
 
-4) PRODUCT DETAIL PAGE WIREFRAME
---------------------------------
--------------------------------------------------------------
-| [Large Product Image] | Product Name                     |
-|                       | ★★★★☆ 120 Reviews               |
-|                       | Price: ₹ 599 ~₹799~ (20% OFF)   |
-|                       | Select Size: S M L XL           |
-|                       | Select Color: ● ● ●             |
-|                       | [ Add to Cart ] [ Buy Now ]     |
--------------------------------------------------------------
-| Description Tab | Reviews Tab | Additional Info Tab      |
--------------------------------------------------------------
-| Recommended Products (Carousel/Grid)                     |
--------------------------------------------------------------
+// UPDATE CATEGORY
+if (isset($_POST['update'])) {
+    $name = $_POST['name'];
+    $parent = !empty($_POST['parent_id']) ? $_POST['parent_id'] : NULL;
+    $id = $_POST['id'];
+    $slug = strtolower(str_replace(" ", "-", $name));
 
-5) ADMIN DASHBOARD LAYOUT (WIREFRAME)
---------------------------------------
----------------------------------------------------------
-| Sidebar (Left)             | Top Bar (Right Area)     |
-| - Dashboard                | Notifications | Profile  |
-| - Categories               --------------------------- |
-| - Products                 | Main Content Panel       |
-| - Orders                   | - Stats Cards (4)        |
-| - Theme Settings           | - Orders Overview        |
-| - Logout                   | - Sales Graph (optional) |
----------------------------------------------------------
+    $stmt = $pdo->prepare("UPDATE categories SET name=?, parent_id=?, slug=? WHERE id=?");
+    $stmt->execute([$name, $parent, $slug, $id]);
+    header("Location: category_crud.php");
+}
 
-6) CLASSIC COLOR PALETTE (SUGGESTED)
--------------------------------------
-Primary Colors:
-- Deep Navy Blue        → #1E293B
-- Burgundy / Wine Red   → #7D1128
-- Classic Black         → #111827
-- Royal Deep Green      → #064E3B
+$categories = getCategories($pdo);
 
-Accent / Highlight:
-- Gold / Mustard        → #EAB308
-- Soft Peach            → #F5C2C7
-- Light Blue Tint       → #93C5FD
+// Function to show category dropdown with indentation
+function showCategoryOptions($categories, $parent_id = NULL, $level = 0, $selected = null) {
+    foreach ($categories as $cat) {
+        if ($cat['parent_id'] == $parent_id) {
+            $indent = str_repeat("&nbsp;&nbsp;&nbsp;", $level);
+            $isSelected = ($selected == $cat['id']) ? "selected" : "";
+            echo "<option value='{$cat['id']}' $isSelected>{$indent}" . ($level ? "↳ " : "") . "{$cat['name']}</option>";
+            showCategoryOptions($categories, $cat['id'], $level + 1, $selected);
+        }
+    }
+}
+?>
 
-Neutral / Background:
-- Off White             → #F8FAFC
-- Light Gray            → #E5E7EB
-- Medium Gray (Text)    → #6B7280
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Category CRUD (Parent + Child)</title>
+    <style>
+        body { font-family: Arial; margin: 40px; }
+        table { width: 60%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 1px solid #aaa; padding: 8px; }
+        th { background: #f0f0f0; }
+        form { margin-bottom: 20px; }
+        input, select { padding: 5px; margin: 5px 0; width: 200px; }
+        button { padding: 5px 10px; }
+    </style>
+</head>
+<body>
 
--------------------------------------
-EXAMPLE THEME COMBINATION:
--------------------------------------
-Primary:        #7D1128 (Burgundy)
-Accent:         #EAB308 (Gold)
-Text Color:     #1E293B (Dark Navy)
-Background:     #F8FAFC (Off White)
-Card BG:        #FFFFFF (White)
-Borders:        #E5E7EB (Light Gray)
+<h2>Category Management (Parent + Child)</h2>
 
-Font Suggestion:
-- Playfair Display (Headers - Elegant Serif)
-- Inter / Poppins / Lato (Clean Sans-serif body)
+<!-- ADD / EDIT FORM -->
+<form method="POST">
+    <input type="hidden" name="id" value="<?= $editData['id'] ?? '' ?>">
+    <label>Category Name:</label><br>
+    <input type="text" name="name" required value="<?= $editData['name'] ?? '' ?>"><br>
 
-7) RESPONSIVE RULES
--------------------
-✔ Mobile: Collapsible hamburger menu, 2-column product grid  
-✔ Tablet: 3-column grid, fixed header  
-✔ Desktop: 4-column grid + sidebar visible  
+    <label>Parent Category:</label><br>
+    <select name="parent_id">
+        <option value="">-- Root / No Parent --</option>
+        <?php showCategoryOptions($categories, NULL, 0, $editData['parent_id'] ?? null); ?>
+    </select><br>
 
-8) FILE STRUCTURE REFERENCE FOR LAYOUT (MVC VIEW SIDE)
--------------------------------------------------------
-app/Views/layouts/app.php        → Header + Footer + Main Wrapper  
-app/Views/partials/header.php    → Logo + Nav + Search  
-app/Views/partials/footer.php    → Footer Content  
-app/Views/product/list.php       → Product Listing (grid)  
-app/Views/product/detail.php     → Product Details Page  
+    <?php if ($editData): ?>
+        <button type="submit" name="update">Update</button>
+        <a href="category_crud.php">Cancel</a>
+    <?php else: ?>
+        <button type="submit" name="add">Add Category</button>
+    <?php endif; ?>
+</form>
 
--------------------------------------------------------
-END OF FILE (You can directly use this as design guide)
+<!-- DISPLAY TABLE -->
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Category</th>
+        <th>Parent</th>
+        <th>Actions</th>
+    </tr>
+    <?php foreach ($categories as $cat): ?>
+        <tr>
+            <td><?= $cat['id'] ?></td>
+            <td>
+                <?= $cat['parent_id'] ? "↳ " : "" ?>
+                <?= $cat['name'] ?>
+            </td>
+            <td>
+                <?php
+                $parent = array_filter($categories, fn($c) => $c['id'] == $cat['parent_id']);
+                echo $parent ? array_values($parent)[0]['name'] : '—';
+                ?>
+            </td>
+            <td>
+                <a href="?edit=<?= $cat['id'] ?>">Edit</a> |
+                <a href="?delete=<?= $cat['id'] ?>" onclick="return confirm('Delete this category?')">Delete</a>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+</table>
+
+</body>
+</html>
