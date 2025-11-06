@@ -1,200 +1,83 @@
-project/
-│
-├── config/
-│   └── db.php     ✅ Database connection using MySQLi
-│
-├── models/
-│   └── CategoryModel.php   ✅ All database queries here
-│
-├── controllers/
-│   └── CategoryController.php  ✅ Handles user actions & AJAX response
-│
-├── views/
-│   └── category_view.php   ✅ Frontend UI (HTML + AJAX Forms)
-│
-├── public/
-│   └── category.js         ✅ All AJAX requests (Add/Edit/Delete)
-│
-└── index.php               ✅ Entry file
+CREATE TABLE settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(100) UNIQUE,
+    setting_value TEXT
+);
+
+
+INSERT INTO settings (setting_key, setting_value) VALUES
+('theme_bg_color', '#ffffff'),
+('theme_primary_color', '#7D1128'),
+('theme_font_family', 'Poppins, sans-serif');
+
+
+function getSetting($key) {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
+    $stmt->execute([$key]);
+    return $stmt->fetchColumn();
+}
+
+
+function setSetting($key, $value) {
+    global $pdo;
+    $stmt = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) 
+                           VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+    $stmt->execute([$key, $value, $value]);
+}
+
+
 
 
 <?php
-class CategoryModel {
-    private $conn;
-
-    public function __construct($db) {
-        $this->conn = $db;
-        $this->createTable();
-    }
-
-    private function createTable() {
-        $sql = "CREATE TABLE IF NOT EXISTS categories (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            parent_id INT NULL,
-            name VARCHAR(150) NOT NULL,
-            slug VARCHAR(200) UNIQUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )";
-        $this->conn->query($sql);
-    }
-
-    public function getAll() {
-        $result = $this->conn->query("SELECT * FROM categories ORDER BY parent_id ASC, name ASC");
-        return $result->fetch_all(MYSQLI_ASSOC);
-    }
-
-    public function insert($name, $parent) {
-        $slug = strtolower(str_replace(" ", "-", $name));
-        $stmt = $this->conn->prepare("INSERT INTO categories(name, parent_id, slug) VALUES (?, ?, ?)");
-        $stmt->bind_param("sis", $name, $parent, $slug);
-        return $stmt->execute();
-    }
-
-    public function delete($id) {
-        $stmt = $this->conn->prepare("DELETE FROM categories WHERE id=?");
-        $stmt->bind_param("i", $id);
-        return $stmt->execute();
-    }
-
-    public function update($id, $name, $parent) {
-        $slug = strtolower(str_replace(" ", "-", $name));
-        $stmt = $this->conn->prepare("UPDATE categories SET name=?, parent_id=?, slug=? WHERE id=?");
-        $stmt->bind_param("sisi", $name, $parent, $slug, $id);
-        return $stmt->execute();
-    }
-
-public function getNestedCategories($parent_id = NULL, $level = 0) {
-    $sql = "SELECT * FROM categories WHERE parent_id " . 
-           ($parent_id ? "= $parent_id" : "IS NULL") . " ORDER BY name ASC";
-    $result = $this->conn->query($sql);
-
-    $data = [];
-    while ($row = $result->fetch_assoc()) {
-        $row['indent'] = str_repeat("&nbsp;&nbsp;&nbsp;", $level) . ($level ? "↳ " : "") . $row['name'];
-        $data[] = $row;
-        $children = $this->getNestedCategories($row['id'], $level + 1);
-        $data = array_merge($data, $children);
-    }
-    return $data;
-}
-
-
-
-
+// Save Form
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    setSetting('theme_bg_color', $_POST['bg_color']);
+    setSetting('theme_primary_color', $_POST['primary_color']);
+    setSetting('theme_font_family', $_POST['font_family']);
+    echo "<script>alert('Settings Updated!');</script>";
 }
 ?>
 
+<h2>Theme Settings</h2>
+<form method="POST">
+    <label>Background Color:</label><br>
+    <input type="color" name="bg_color" value="<?= getSetting('theme_bg_color'); ?>"><br><br>
 
+    <label>Primary Color (Buttons/Links):</label><br>
+    <input type="color" name="primary_color" value="<?= getSetting('theme_primary_color'); ?>"><br><br>
 
+    <label>Font Family:</label><br>
+    <select name="font_family">
+        <option <?= getSetting('theme_font_family') == 'Poppins, sans-serif' ? 'selected' : '' ?>>Poppins, sans-serif</option>
+        <option <?= getSetting('theme_font_family') == 'Roboto, sans-serif' ? 'selected' : '' ?>>Roboto, sans-serif</option>
+        <option <?= getSetting('theme_font_family') == 'Playfair Display, serif' ? 'selected' : '' ?>>Playfair Display, serif</option>
+    </select><br><br>
 
-//controller
-<?php
-require_once "../config/db.php";
-require_once "../models/CategoryModel.php";
-
-$db = new Database();
-$model = new CategoryModel($db->conn);
-
-if (isset($_POST['action'])) {
-    if ($_POST['action'] == "add") {
-        $model->insert($_POST['name'], $_POST['parent_id'] ?: NULL);
-        echo "Category Added";
-    }
-
-    if ($_POST['action'] == "update") {
-        $model->update($_POST['id'], $_POST['name'], $_POST['parent_id'] ?: NULL);
-        echo "Category Updated";
-    }
-
-    if ($_POST['action'] == "delete") {
-        $model->delete($_POST['id']);
-        echo "Category Deleted";
-    }
-    exit;
-}
-
-$categories = $model->getNestedCategories(); 
-?>
-
-
-//view
-<?php require "../controllers/CategoryController.php"; ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Category Management (MVC + AJAX)</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="../public/category.js"></script>
-</head>
-<body>
-
-<h2>Category Management (Parent + Child)</h2>
-
-<form id="categoryForm">
-    <input type="hidden" name="id" id="cat_id">
-    <input type="text" name="name" id="name" required placeholder="Category Name">
-
-   <select name="parent_id" id="parent_id">
-    <option value="">-- Root / No Parent --</option>
-    <?php foreach ($categories as $cat): ?>
-        <option value="<?= $cat['id'] ?>"><?= $cat['indent'] ?></option>
-    <?php endforeach; ?>
-</select>
-
-
-    <button type="submit">Save</button>
+    <button type="submit">Save Settings</button>
 </form>
 
-<table border="1" cellpadding="8">
-    <tr><th>ID</th><th>Name</th><th>Parent</th><th>Actions</th></tr>
-    <?php foreach ($categories as $cat): ?>
-    <tr>
-        <td><?= $cat['id'] ?></td>
-        <td><?= $cat['name'] ?></td>
-        <td><?= $cat['parent_id'] ?: '—' ?></td>
-        <td>
-            <button class="editBtn" data-id="<?= $cat['id'] ?>" data-name="<?= $cat['name'] ?>" data-parent="<?= $cat['parent_id'] ?>">Edit</button>
-            <button class="deleteBtn" data-id="<?= $cat['id'] ?>">Delete</button>
-        </td>
-    </tr>
-    <?php endforeach; ?>
-</table>
-
-</body>
-</html>
 
 
 
-//ajax
-$(document).on("submit", "#categoryForm", function (e) {
-    e.preventDefault();
-    let action = $("#cat_id").val() ? "update" : "add";
-
-    $.post("../controllers/CategoryController.php", {
-        action: action,
-        id: $("#cat_id").val(),
-        name: $("#name").val(),
-        parent_id: $("#parent_id").val()
-    }, function (response) {
-        alert(response);
-        location.reload();
-    });
-});
-
-$(".editBtn").click(function () {
-    $("#cat_id").val($(this).data("id"));
-    $("#name").val($(this).data("name"));
-    $("#parent_id").val($(this).data("parent"));
-});
-
-$(".deleteBtn").click(function () {
-    if (confirm("Delete this category?")) {
-        $.post("../controllers/CategoryController.php", {
-            action: "delete",
-            id: $(this).data("id")
-        }, function (response) {
-            alert(response);
-            location.reload();
-        });
-});
-});
+<?php
+$bg = getSetting('theme_bg_color');
+$primary = getSetting('theme_primary_color');
+$font = getSetting('theme_font_family');
+?>
+<style>
+:root {
+    --bg-color: <?= $bg ?>;
+    --primary-color: <?= $primary ?>;
+    --font-family: <?= $font ?>;
+}
+body {
+    background-color: var(--bg-color);
+    font-family: var(--font-family);
+}
+button, .btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+a { color: var(--primary-color); }
+</style>
