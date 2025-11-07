@@ -1,3 +1,29 @@
+qnatity btn
+
+<form action="cart.php" method="POST">
+    <input type="hidden" name="product_id" value="<?= $product['id']; ?>">
+
+    <label>Quantity:</label>
+    <div class="qty-box">
+        <button type="button" onclick="decreaseQty()">−</button>
+        <input type="number" id="quantity" name="qty" value="1" min="1">
+        <button type="button" onclick="increaseQty()">+</button>
+    </div>
+
+    <button type="submit" name="action" value="add_to_cart">Add to Cart</button>
+    <button type="submit" name="action" value="buy_now">Buy Now</button>
+</form>
+
+$productId = $_POST['product_id'];
+$qty = $_POST['qty'] ?? 1;
+
+if (!isset($_SESSION['cart'][$productId])) {
+    $_SESSION['cart'][$productId] = $qty;
+} else {
+    $_SESSION['cart'][$productId] += $qty;
+}
+
+
 CART FUNCTIONALITY (SUMMARY + FULL CODE)
 
 SUMMARY (SHORT & CLEAR):
