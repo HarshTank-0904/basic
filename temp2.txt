@@ -1,135 +1,341 @@
-qnatity btn
+Untitled
 
-<form action="cart.php" method="POST">
-    <input type="hidden" name="product_id" value="<?= $product['id']; ?>">
+===============================================================
+E-COMMERCE CHECKOUT + ORDER MANAGEMENT SYSTEM (MVC + MYSQLi)
+===============================================================
 
-    <label>Quantity:</label>
-    <div class="qty-box">
-        <button type="button" onclick="decreaseQty()">−</button>
-        <input type="number" id="quantity" name="qty" value="1" min="1">
-        <button type="button" onclick="increaseQty()">+</button>
-    </div>
+1. OVERVIEW
+------------
+This document explains how to create a complete order checkout and
+order management system using MVC architecture with PHP and MySQLi.
 
-    <button type="submit" name="action" value="add_to_cart">Add to Cart</button>
-    <button type="submit" name="action" value="buy_now">Buy Now</button>
+It covers:
+Checkout page (user side)
+ Order confirmation logic
+ Database flow between model, controller, and views
+ Admin order management pages
+ Example SQL and folder structure
+
+===============================================================
+2. MVC FOLDER STRUCTURE
+===============================================================
+
+project_root/
+│
+├── index.php                    → Main entry file (route handler)
+├── config/
+│   └── db.php                   → MySQLi connection
+│
+├── app/
+│   ├── controllers/
+│   │   ├── CheckoutController.php
+│   │   ├── OrderController.php
+│   │   └── AdminOrderController.php
+│   │
+│   ├── models/
+│   │   ├── Product.php
+│   │   ├── Order.php
+│   │   ├── OrderItem.php
+│   │   └── User.php
+│   │
+│   └── views/
+│       ├── checkout/
+│       │   ├── checkout.php
+│       │   ├── confirm.php
+│       │   └── thankyou.php
+│       │
+│       └── admin/
+│           ├── order_list.php
+│           └── order_details.php
+│
+└── assets/
+    ├── css/
+    └── js/
+
+===============================================================
+3. DATABASE DESIGN
+===============================================================
+
+TABLE: orders
+--------------
+id INT AUTO_INCREMENT PRIMARY KEY  
+user_id INT NULL  
+total_amount DECIMAL(10,2)  
+payment_method ENUM('COD','Online')  
+payment_status ENUM('Pending','Paid','Failed') DEFAULT 'Pending'  
+order_status ENUM('Pending','Processing','Shipped','Delivered','Cancelled') DEFAULT 'Pending'  
+address TEXT  
+created_at DATETIME DEFAULT CURRENT_TIMESTAMP  
+
+TABLE: order_items
+------------------
+id INT AUTO_INCREMENT PRIMARY KEY  
+order_id INT  
+product_id INT  
+product_name VARCHAR(255)  
+price DECIMAL(10,2)  
+quantity INT  
+total_price DECIMAL(10,2)  
+
+===============================================================
+4. FLOW OF DATA (MVC LAYER COMMUNICATION)
+===============================================================
+
+STEP 1 – USER SIDE CHECKOUT
+---------------------------
+User visits:
+   → /checkout (CheckoutController@index)
+
+Controller fetches products from session cart using Product Model.  
+It passes cart data + totals to view file checkout.php.
+
+User fills form → submits → CheckoutController@confirm.
+
+Controller validates input and calls Order Model to:
+   - Create new order
+   - Insert related order items
+   - Clear cart
+   - Redirect to Thank You page
+
+STEP 2 – ADMIN SIDE ORDER MANAGEMENT
+------------------------------------
+Admin visits:
+   → /admin/orders (AdminOrderController@index)
+     → Shows list of all orders
+   → /admin/orders/view?id=5 (AdminOrderController@show)
+     → Shows order details and items
+   → /admin/orders/update (AdminOrderController@update)
+     → Update order_status, payment_status, etc.
+
+===============================================================
+5. MODEL DETAILS (MySQLi MODELS)
+===============================================================
+
+MODEL: Order.php
+----------------
+<?php
+class Order {
+    private $conn;
+    public function __construct($db) {
+        $this->conn = $db;
+    }
+
+    public function create($user_id, $total, $payment, $address) {
+        $stmt = $this->conn->prepare("INSERT INTO orders (user_id, total_amount, payment_method, payment_status, order_status, address, created_at)
+                                      VALUES (?, ?, ?, 'Pending', 'Pending', ?, NOW())");
+        $stmt->bind_param("idss", $user_id, $total, $payment, $address);
+        $stmt->execute();
+        return $this->conn->insert_id;
+    }
+
+    public function getAllOrders() {
+        return $this->conn->query("SELECT * FROM orders ORDER BY id DESC");
+    }
+
+    public function getOrder($id) {
+        $stmt = $this->conn->prepare("SELECT * FROM orders WHERE id=?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_assoc();
+    }
+
+    public function updateStatus($id, $order_status, $payment_status) {
+        $stmt = $this->conn->prepare("UPDATE orders SET order_status=?, payment_status=? WHERE id=?");
+        $stmt->bind_param("ssi", $order_status, $payment_status, $id);
+        $stmt->execute();
+    }
+}
+?>
+
+MODEL: OrderItem.php
+--------------------
+<?php
+class OrderItem {
+    private $conn;
+    public function __construct($db) {
+        $this->conn = $db;
+    }
+
+    public function insert($order_id, $product_id, $name, $price, $qty, $total_price) {
+        $stmt = $this->conn->prepare("INSERT INTO order_items (order_id, product_id, product_name, price, quantity, total_price)
+                                      VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("iisdis", $order_id, $product_id, $name, $price, $qty, $total_price);
+        $stmt->execute();
+    }
+
+    public function getItems($order_id) {
+        $stmt = $this->conn->prepare("SELECT * FROM order_items WHERE order_id=?");
+        $stmt->bind_param("i", $order_id);
+        $stmt->execute();
+        return $stmt->get_result();
+    }
+}
+?>
+
+===============================================================
+6. CONTROLLER DETAILS
+===============================================================
+
+CONTROLLER: CheckoutController.php
+----------------------------------
+<?php
+class CheckoutController {
+    public function index() {
+        // Load cart data
+        $cart = $_SESSION['cart'] ?? [];
+        include 'app/views/checkout/checkout.php';
+    }
+
+    public function confirm() {
+        include 'config/db.php';
+        include 'app/models/Order.php';
+        include 'app/models/OrderItem.php';
+
+        $order = new Order($conn);
+        $orderItem = new OrderItem($conn);
+
+        $user_id = $_SESSION['user_id'] ?? 1;
+        $payment = $_POST['payment'];
+        $address = $_POST['address'] . ', ' . $_POST['city'] . ', ' . $_POST['state'] . ' - ' . $_POST['zip'];
+        $total = $_POST['total'];
+
+        $order_id = $order->create($user_id, $total, $payment, $address);
+
+        foreach ($_SESSION['cart'] as $id => $qty) {
+            $result = mysqli_query($conn, "SELECT name, price FROM products WHERE id=$id");
+            $row = mysqli_fetch_assoc($result);
+            $price = $row['price'];
+            $line_total = $price * $qty;
+            $orderItem->insert($order_id, $id, $row['name'], $price, $qty, $line_total);
+        }
+
+        unset($_SESSION['cart']);
+        header("Location: index.php?controller=checkout&action=thankyou&id=$order_id");
+    }
+
+    public function thankyou() {
+        include 'app/views/checkout/thankyou.php';
+    }
+}
+?>
+
+CONTROLLER: AdminOrderController.php
+------------------------------------
+<?php
+class AdminOrderController {
+    public function index() {
+        include 'config/db.php';
+        include 'app/models/Order.php';
+        $order = new Order($conn);
+        $orders = $order->getAllOrders();
+        include 'app/views/admin/order_list.php';
+    }
+
+    public function view() {
+        include 'config/db.php';
+        include 'app/models/Order.php';
+        include 'app/models/OrderItem.php';
+        $order = new Order($conn);
+        $orderItem = new OrderItem($conn);
+        $orderData = $order->getOrder($_GET['id']);
+        $items = $orderItem->getItems($_GET['id']);
+        include 'app/views/admin/order_details.php';
+    }
+
+    public function update() {
+        include 'config/db.php';
+        include 'app/models/Order.php';
+        $order = new Order($conn);
+        $order->updateStatus($_POST['id'], $_POST['order_status'], $_POST['payment_status']);
+        header("Location: index.php?controller=adminOrder&action=view&id=".$_POST['id']);
+    }
+}
+?>
+
+===============================================================
+7. ADMIN ORDER MANAGEMENT DETAILS
+===============================================================
+
+Admin Order Summary Page (order_list.php)
+-----------------------------------------
+Displays all orders in a table with:
+- Order ID
+- User
+- Total
+- Payment Status
+- Order Status
+- Date
+- View Button
+
+Actions:
+ Filter by status  
+ View details  
+ Update status  
+
+Admin Order Details Page (order_details.php)
+--------------------------------------------
+Shows full details of a specific order:
+- Order summary (ID, date, total)
+- Customer details (address, phone)
+- Payment method & status
+- All products in this order
+- Status update form
+
+Form example:
+<form method="POST" action="index.php?controller=adminOrder&action=update">
+  <input type="hidden" name="id" value="<?= $orderData['id'] ?>">
+  Order Status:
+  <select name="order_status">
+    <option value="Pending">Pending</option>
+    <option value="Processing">Processing</option>
+    <option value="Shipped">Shipped</option>
+    <option value="Delivered">Delivered</option>
+    <option value="Cancelled">Cancelled</option>
+  </select>
+  Payment Status:
+  <select name="payment_status">
+    <option value="Pending">Pending</option>
+    <option value="Paid">Paid</option>
+    <option value="Failed">Failed</option>
+  </select>
+  <button type="submit">Update</button>
 </form>
 
-$productId = $_POST['product_id'];
-$qty = $_POST['qty'] ?? 1;
+Admin can change:
+ order_status  
+ payment_status  
+ Add tracking info (optional future enhancement)
 
-if (!isset($_SESSION['cart'][$productId])) {
-    $_SESSION['cart'][$productId] = $qty;
-} else {
-    $_SESSION['cart'][$productId] += $qty;
-}
+===============================================================
+8. ORDER LIFECYCLE SUMMARY
+===============================================================
 
+USER SIDE:
+-----------
+1. Cart → CheckoutController@index
+2. Confirm → CheckoutController@confirm
+3. Save order → Order model + OrderItem model
+4. Redirect → Thank You page
 
-CART FUNCTIONALITY (SUMMARY + FULL CODE)
+ADMIN SIDE:
+------------
+1. Admin views orders → AdminOrderController@index
+2. Click View → AdminOrderController@view
+3. Update status → AdminOrderController@update
 
-SUMMARY (SHORT & CLEAR):
-------------------------
-• Cart is stored in PHP session ($_SESSION['cart']).  
-• When user clicks "Add to Cart" → product ID + quantity stored in session.  
-• When user clicks "Buy Now" → same as add to cart, but directly redirects to checkout page.  
-• Cart page displays all products using product_id from session and fetching details from database.  
-• Users can update quantity or remove a product from cart.  
-• Checkout uses session cart to place order.
+Order Status Flow:
+Pending → Processing → Shipped → Delivered  
+or Cancelled / Failed
 
--------------------
-FULL PHP CODE LOGIC
--------------------
+===============================================================
+9. FUTURE IMPROVEMENTS
+===============================================================
+ Add tracking number & shipping details  
+ Send confirmation email to customer  
+ Integrate payment gateway (Razorpay / Stripe)  
+ Add pagination & search in admin order list  
+ Show order history in user profile  
 
-1) PRODUCT PAGE (Buttons: Add to Cart + Buy Now)
-
-<form action="cart.php" method="POST">
-    <input type="hidden" name="product_id" value="<?= $product['id']; ?>">
-    <input type="number" name="qty" value="1" min="1">
-    <button type="submit" name="action" value="add_to_cart">Add to Cart</button>
-    <button type="submit" name="action" value="buy_now">Buy Now</button>
-</form>
-
--------------------------------------------------
-
-2) cart.php (Handles add/buy functionality)
-
-<?php
-session_start();
-
-$id   = $_POST['product_id'];
-$qty  = $_POST['qty'] ?? 1;
-$act  = $_POST['action'];
-
-// Create cart if not exists
-if (!isset($_SESSION['cart'])) {
-    $_SESSION['cart'] = [];
-}
-
-// Add or update quantity
-if (isset($_SESSION['cart'][$id])) {
-    $_SESSION['cart'][$id] += $qty;
-} else {
-    $_SESSION['cart'][$id] = $qty;
-}
-
-// Redirect based on button
-if ($act == "add_to_cart") {
-    header("Location: cart_view.php");
-    exit;
-}
-if ($act == "buy_now") {
-    header("Location: checkout.php");
-    exit;
-}
-?>
-
--------------------------------------------------
-
-3) cart_view.php (Display cart items)
-
-<?php
-session_start();
-if (empty($_SESSION['cart'])) {
-    echo "Cart is empty!";
-    exit;
-}
-
-foreach ($_SESSION['cart'] as $id => $qty) {
-    // Example: Fetch product from DB
-    $product = getProductById($id); // (You will write this function)
-    echo $product['name'] . " | Qty: " . $qty . " | Price: " . $product['price'] * $qty;
-    echo " <a href='remove.php?id=$id'>Remove</a>";
-}
-echo "<a href='checkout.php'>Proceed to Checkout</a>";
-?>
-
--------------------------------------------------
-
-4) remove.php (Delete single item from cart)
-
-<?php
-session_start();
-$id = $_GET['id'];
-unset($_SESSION['cart'][$id]);
-header("Location: cart_view.php");
-?>
-
--------------------------------------------------
-
-5) checkout.php (Order summary)
-
-<?php
-session_start();
-$total = 0;
-foreach ($_SESSION['cart'] as $id => $qty) {
-    $product = getProductById($id);
-    $price = $product['price'] * $qty;
-    $total += $price;
-    echo $product['name'] . " - Qty: $qty - Total: ₹$price <br>";
-}
-echo "<h3>Grand Total: ₹$total</h3>";
-echo "<a href='payment.php'>Pay Now / Place Order</a>";
-?>
-
--------------------------------------------------
-END OF FILE
--------------------------------------------------
+===============================================================
+END OF DOCUMENT
+===============================================================
