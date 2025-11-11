@@ -1,341 +1,263 @@
-Untitled
+untitled
+===================================================================
+ADMIN SETTINGS PAGE (THEME + FONT CUSTOMIZATION)
+MVC STRUCTURE — PHP + MYSQLi + AJAX
+====================================================================
 
-===============================================================
-E-COMMERCE CHECKOUT + ORDER MANAGEMENT SYSTEM (MVC + MYSQLi)
-===============================================================
+1. PURPOSE
+-----------
+This feature allows the Admin to customize:
+✔ Color theme (choose from 6 palettes)
+✔ Font style (choose from 4 fonts)
+✔ Live preview on settings page (temporary)
+✔ Save theme and font in database (permanent)
+✔ Applied globally using header.php
 
-1. OVERVIEW
-------------
-This document explains how to create a complete order checkout and
-order management system using MVC architecture with PHP and MySQLi.
-
-It covers:
-Checkout page (user side)
- Order confirmation logic
- Database flow between model, controller, and views
- Admin order management pages
- Example SQL and folder structure
-
-===============================================================
-2. MVC FOLDER STRUCTURE
-===============================================================
-
+====================================================================
+2. FOLDER STRUCTURE (MVC)
+====================================================================
 project_root/
 │
-├── index.php                    → Main entry file (route handler)
 ├── config/
-│   └── db.php                   → MySQLi connection
+│   └── db.php
 │
 ├── app/
 │   ├── controllers/
-│   │   ├── CheckoutController.php
-│   │   ├── OrderController.php
-│   │   └── AdminOrderController.php
-│   │
+│   │   └── SettingsController.php
 │   ├── models/
-│   │   ├── Product.php
-│   │   ├── Order.php
-│   │   ├── OrderItem.php
-│   │   └── User.php
-│   │
+│   │   └── Settings.php
 │   └── views/
-│       ├── checkout/
-│       │   ├── checkout.php
-│       │   ├── confirm.php
-│       │   └── thankyou.php
-│       │
-│       └── admin/
-│           ├── order_list.php
-│           └── order_details.php
+│       └── settings/
+│           ├── settings.php
+│           └── settings.js
 │
-└── assets/
-    ├── css/
-    └── js/
+├── includes/
+│   └── header.php  → Loads applied theme/font from DB
+│
+└── index.php       → Main entry point (routes)
 
-===============================================================
-3. DATABASE DESIGN
-===============================================================
+====================================================================
+3. DATABASE TABLE
+====================================================================
 
-TABLE: orders
---------------
-id INT AUTO_INCREMENT PRIMARY KEY  
-user_id INT NULL  
-total_amount DECIMAL(10,2)  
-payment_method ENUM('COD','Online')  
-payment_status ENUM('Pending','Paid','Failed') DEFAULT 'Pending'  
-order_status ENUM('Pending','Processing','Shipped','Delivered','Cancelled') DEFAULT 'Pending'  
-address TEXT  
-created_at DATETIME DEFAULT CURRENT_TIMESTAMP  
+CREATE TABLE settings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  primary_color VARCHAR(20),
+  secondary_color VARCHAR(20),
+  accent_color VARCHAR(20),
+  font_family VARCHAR(50)
+);
 
-TABLE: order_items
-------------------
-id INT AUTO_INCREMENT PRIMARY KEY  
-order_id INT  
-product_id INT  
-product_name VARCHAR(255)  
-price DECIMAL(10,2)  
-quantity INT  
-total_price DECIMAL(10,2)  
+Insert one default row:
+INSERT INTO settings (primary_color, secondary_color, accent_color, font_family)
+VALUES ('#1A1A1A', '#E50914', '#FFFFFF', 'Arial, sans-serif');
 
-===============================================================
-4. FLOW OF DATA (MVC LAYER COMMUNICATION)
-===============================================================
-
-STEP 1 – USER SIDE CHECKOUT
----------------------------
-User visits:
-   → /checkout (CheckoutController@index)
-
-Controller fetches products from session cart using Product Model.  
-It passes cart data + totals to view file checkout.php.
-
-User fills form → submits → CheckoutController@confirm.
-
-Controller validates input and calls Order Model to:
-   - Create new order
-   - Insert related order items
-   - Clear cart
-   - Redirect to Thank You page
-
-STEP 2 – ADMIN SIDE ORDER MANAGEMENT
-------------------------------------
-Admin visits:
-   → /admin/orders (AdminOrderController@index)
-     → Shows list of all orders
-   → /admin/orders/view?id=5 (AdminOrderController@show)
-     → Shows order details and items
-   → /admin/orders/update (AdminOrderController@update)
-     → Update order_status, payment_status, etc.
-
-===============================================================
-5. MODEL DETAILS (MySQLi MODELS)
-===============================================================
-
-MODEL: Order.php
-----------------
+====================================================================
+4. MODEL FILE — app/models/Settings.php
+====================================================================
 <?php
-class Order {
+class Settings {
     private $conn;
     public function __construct($db) {
         $this->conn = $db;
     }
 
-    public function create($user_id, $total, $payment, $address) {
-        $stmt = $this->conn->prepare("INSERT INTO orders (user_id, total_amount, payment_method, payment_status, order_status, address, created_at)
-                                      VALUES (?, ?, ?, 'Pending', 'Pending', ?, NOW())");
-        $stmt->bind_param("idss", $user_id, $total, $payment, $address);
-        $stmt->execute();
-        return $this->conn->insert_id;
+    public function getSettings() {
+        $result = $this->conn->query("SELECT * FROM settings LIMIT 1");
+        return $result->fetch_assoc();
     }
 
-    public function getAllOrders() {
-        return $this->conn->query("SELECT * FROM orders ORDER BY id DESC");
-    }
-
-    public function getOrder($id) {
-        $stmt = $this->conn->prepare("SELECT * FROM orders WHERE id=?");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        return $stmt->get_result()->fetch_assoc();
-    }
-
-    public function updateStatus($id, $order_status, $payment_status) {
-        $stmt = $this->conn->prepare("UPDATE orders SET order_status=?, payment_status=? WHERE id=?");
-        $stmt->bind_param("ssi", $order_status, $payment_status, $id);
-        $stmt->execute();
+    public function updateSettings($primary, $secondary, $accent, $font) {
+        $stmt = $this->conn->prepare("UPDATE settings SET primary_color=?, secondary_color=?, accent_color=?, font_family=? WHERE id=1");
+        $stmt->bind_param("ssss", $primary, $secondary, $accent, $font);
+        return $stmt->execute();
     }
 }
 ?>
 
-MODEL: OrderItem.php
---------------------
+====================================================================
+5. CONTROLLER FILE — app/controllers/SettingsController.php
+====================================================================
 <?php
-class OrderItem {
-    private $conn;
-    public function __construct($db) {
-        $this->conn = $db;
-    }
-
-    public function insert($order_id, $product_id, $name, $price, $qty, $total_price) {
-        $stmt = $this->conn->prepare("INSERT INTO order_items (order_id, product_id, product_name, price, quantity, total_price)
-                                      VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("iisdis", $order_id, $product_id, $name, $price, $qty, $total_price);
-        $stmt->execute();
-    }
-
-    public function getItems($order_id) {
-        $stmt = $this->conn->prepare("SELECT * FROM order_items WHERE order_id=?");
-        $stmt->bind_param("i", $order_id);
-        $stmt->execute();
-        return $stmt->get_result();
-    }
-}
-?>
-
-===============================================================
-6. CONTROLLER DETAILS
-===============================================================
-
-CONTROLLER: CheckoutController.php
-----------------------------------
-<?php
-class CheckoutController {
-    public function index() {
-        // Load cart data
-        $cart = $_SESSION['cart'] ?? [];
-        include 'app/views/checkout/checkout.php';
-    }
-
-    public function confirm() {
-        include 'config/db.php';
-        include 'app/models/Order.php';
-        include 'app/models/OrderItem.php';
-
-        $order = new Order($conn);
-        $orderItem = new OrderItem($conn);
-
-        $user_id = $_SESSION['user_id'] ?? 1;
-        $payment = $_POST['payment'];
-        $address = $_POST['address'] . ', ' . $_POST['city'] . ', ' . $_POST['state'] . ' - ' . $_POST['zip'];
-        $total = $_POST['total'];
-
-        $order_id = $order->create($user_id, $total, $payment, $address);
-
-        foreach ($_SESSION['cart'] as $id => $qty) {
-            $result = mysqli_query($conn, "SELECT name, price FROM products WHERE id=$id");
-            $row = mysqli_fetch_assoc($result);
-            $price = $row['price'];
-            $line_total = $price * $qty;
-            $orderItem->insert($order_id, $id, $row['name'], $price, $qty, $line_total);
-        }
-
-        unset($_SESSION['cart']);
-        header("Location: index.php?controller=checkout&action=thankyou&id=$order_id");
-    }
-
-    public function thankyou() {
-        include 'app/views/checkout/thankyou.php';
-    }
-}
-?>
-
-CONTROLLER: AdminOrderController.php
-------------------------------------
-<?php
-class AdminOrderController {
+class SettingsController {
     public function index() {
         include 'config/db.php';
-        include 'app/models/Order.php';
-        $order = new Order($conn);
-        $orders = $order->getAllOrders();
-        include 'app/views/admin/order_list.php';
-    }
-
-    public function view() {
-        include 'config/db.php';
-        include 'app/models/Order.php';
-        include 'app/models/OrderItem.php';
-        $order = new Order($conn);
-        $orderItem = new OrderItem($conn);
-        $orderData = $order->getOrder($_GET['id']);
-        $items = $orderItem->getItems($_GET['id']);
-        include 'app/views/admin/order_details.php';
+        include 'app/models/Settings.php';
+        $model = new Settings($conn);
+        $settings = $model->getSettings();
+        include 'app/views/settings/settings.php';
     }
 
     public function update() {
         include 'config/db.php';
-        include 'app/models/Order.php';
-        $order = new Order($conn);
-        $order->updateStatus($_POST['id'], $_POST['order_status'], $_POST['payment_status']);
-        header("Location: index.php?controller=adminOrder&action=view&id=".$_POST['id']);
+        include 'app/models/Settings.php';
+        $model = new Settings($conn);
+
+        $data = json_decode(file_get_contents("php://input"), true);
+        $ok = $model->updateSettings($data['primary'], $data['secondary'], $data['accent'], $data['font']);
+        echo json_encode(["success" => $ok]);
     }
 }
 ?>
 
-===============================================================
-7. ADMIN ORDER MANAGEMENT DETAILS
-===============================================================
+====================================================================
+6. VIEW FILE — app/views/settings/settings.php
+====================================================================
+<?php include 'includes/header.php'; ?>
 
-Admin Order Summary Page (order_list.php)
------------------------------------------
-Displays all orders in a table with:
-- Order ID
-- User
-- Total
-- Payment Status
-- Order Status
-- Date
-- View Button
+<div id="settings-page" style="padding:20px;">
+    <h2>🛠 Theme & Font Settings</h2>
 
-Actions:
- Filter by status  
- View details  
- Update status  
+    <h3>🎨 Choose Color Palette</h3>
+    <div id="color-palettes" style="display:flex; flex-wrap:wrap; gap:20px;">
+        <?php
+        $palettes = [
+            ['#1A1A1A','#E50914','#FFFFFF'],
+            ['#2D2F36','#00B4D8','#CAF0F8'],
+            ['#181818','#BB86FC','#03DAC5'],
+            ['#F8F9FA','#007BFF','#343A40'],
+            ['#101820','#FEE715','#FFFFFF'],
+            ['#22223B','#4A4E69','#9A8C98']
+        ];
+        $i = 0;
+        foreach ($palettes as $p):
+        ?>
+        <div class="palette" data-primary="<?= $p[0] ?>" data-secondary="<?= $p[1] ?>" data-accent="<?= $p[2] ?>"
+             style="border:1px solid #ccc; padding:10px; cursor:pointer;">
+            <div style="background:<?= $p[0] ?>;height:20px;"></div>
+            <div style="background:<?= $p[1] ?>;height:20px;"></div>
+            <div style="background:<?= $p[2] ?>;height:20px;"></div>
+            <button class="preview-btn" data-id="<?= $i ?>">Preview</button>
+        </div>
+        <?php $i++; endforeach; ?>
+    </div>
 
-Admin Order Details Page (order_details.php)
---------------------------------------------
-Shows full details of a specific order:
-- Order summary (ID, date, total)
-- Customer details (address, phone)
-- Payment method & status
-- All products in this order
-- Status update form
+    <h3 style="margin-top:30px;">🅰 Choose Font Style</h3>
+    <div id="fonts">
+        <?php
+        $fonts = ['Arial, sans-serif', 'Poppins, sans-serif', 'Courier New, monospace', 'Georgia, serif'];
+        foreach ($fonts as $f):
+        ?>
+        <div style="margin-bottom:10px;">
+            <p style="font-family:<?= $f ?>;">Sample text in <?= $f ?></p>
+            <button class="font-preview" data-font="<?= $f ?>">Preview Font</button>
+        </div>
+        <?php endforeach; ?>
+    </div>
 
-Form example:
-<form method="POST" action="index.php?controller=adminOrder&action=update">
-  <input type="hidden" name="id" value="<?= $orderData['id'] ?>">
-  Order Status:
-  <select name="order_status">
-    <option value="Pending">Pending</option>
-    <option value="Processing">Processing</option>
-    <option value="Shipped">Shipped</option>
-    <option value="Delivered">Delivered</option>
-    <option value="Cancelled">Cancelled</option>
-  </select>
-  Payment Status:
-  <select name="payment_status">
-    <option value="Pending">Pending</option>
-    <option value="Paid">Paid</option>
-    <option value="Failed">Failed</option>
-  </select>
-  <button type="submit">Update</button>
-</form>
+    <button id="apply-settings" style="margin-top:20px;">💾 Apply Settings</button>
+</div>
 
-Admin can change:
- order_status  
- payment_status  
- Add tracking info (optional future enhancement)
+<script src="app/views/settings/settings.js"></script>
 
-===============================================================
-8. ORDER LIFECYCLE SUMMARY
-===============================================================
+====================================================================
+7. JAVASCRIPT (AJAX + PREVIEW) — app/views/settings/settings.js
+====================================================================
+const page = document.getElementById("settings-page");
+let selected = { primary: null, secondary: null, accent: null, font: null };
 
-USER SIDE:
------------
-1. Cart → CheckoutController@index
-2. Confirm → CheckoutController@confirm
-3. Save order → Order model + OrderItem model
-4. Redirect → Thank You page
+document.querySelectorAll(".preview-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+        const parent = e.target.closest(".palette");
+        selected.primary = parent.dataset.primary;
+        selected.secondary = parent.dataset.secondary;
+        selected.accent = parent.dataset.accent;
+        applyPreview();
+    });
+});
 
-ADMIN SIDE:
-------------
-1. Admin views orders → AdminOrderController@index
-2. Click View → AdminOrderController@view
-3. Update status → AdminOrderController@update
+document.querySelectorAll(".font-preview").forEach(btn => {
+    btn.addEventListener("click", e => {
+        selected.font = e.target.dataset.font;
+        applyPreview();
+    });
+});
 
-Order Status Flow:
-Pending → Processing → Shipped → Delivered  
-or Cancelled / Failed
+function applyPreview() {
+    if (selected.primary) page.style.background = selected.primary;
+    if (selected.secondary) page.style.color = selected.secondary;
+    if (selected.font) page.style.fontFamily = selected.font;
+}
 
-===============================================================
-9. FUTURE IMPROVEMENTS
-===============================================================
- Add tracking number & shipping details  
- Send confirmation email to customer  
- Integrate payment gateway (Razorpay / Stripe)  
- Add pagination & search in admin order list  
- Show order history in user profile  
+document.getElementById("apply-settings").addEventListener("click", () => {
+    if (!selected.primary || !selected.font) {
+        alert("Please select a color and a font before applying!");
+        return;
+    }
 
-===============================================================
-END OF DOCUMENT
-===============================================================
+    fetch("index.php?controller=settings&action=update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(selected)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) alert("Theme updated successfully!");
+        else alert("Error saving settings.");
+    });
+});
+
+====================================================================
+8. HEADER FILE — includes/header.php
+====================================================================
+<?php
+include 'config/db.php';
+include 'app/models/Settings.php';
+$model = new Settings($conn);
+$theme = $model->getSettings();
+?>
+<style>
+body {
+    background: <?= $theme['primary_color'] ?>;
+    color: <?= $theme['accent_color'] ?>;
+    font-family: <?= $theme['font_family'] ?>;
+}
+a, h1, h2, h3, button {
+    color: <?= $theme['secondary_color'] ?>;
+}
+button {
+    background: <?= $theme['secondary_color'] ?>;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+</style>
+
+====================================================================
+9. CONTROLLER ROUTING (index.php)
+====================================================================
+<?php
+$controller = $_GET['controller'] ?? 'settings';
+$action = $_GET['action'] ?? 'index';
+
+if ($controller === 'settings') {
+    include 'app/controllers/SettingsController.php';
+    $ctrl = new SettingsController();
+    if ($action === 'index') $ctrl->index();
+    if ($action === 'update') $ctrl->update();
+}
+?>
+
+====================================================================
+10. FEATURE SUMMARY
+====================================================================
+✔ Admin can pick 1 of 6 color palettes (3 shades each)  
+✔ Admin can preview theme live (only changes settings page)  
+✔ Admin can preview fonts instantly  
+✔ “Apply” saves the theme permanently in database (via AJAX)  
+✔ New color/font automatically applies to all pages (through header.php)  
+✔ Uses MVC separation (Model, Controller, View) for maintainability  
+
+====================================================================
+11. FUTURE IMPROVEMENTS
+====================================================================
+- Add “Reset to Default” button  
+- Store admin-wise preferences (if multiple admins)  
+- Add live preview for all pages using localStorage  
+- Allow uploading custom fonts  
+- Store dark/light mode toggle in settings table  
+
+====================================================================
+END OF SETTINGS PAGE IMPLEMENTATION (MVC + AJAX)
+====================================================================
