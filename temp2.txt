@@ -1,25 +1,28 @@
 untitled
-===================================================================
-ADMIN SETTINGS PAGE (THEME + FONT CUSTOMIZATION)
-MVC STRUCTURE — PHP + MYSQLi + AJAX
+====================================================================
+ADMIN SETTINGS PAGE — COMPLETE IMPLEMENTATION (MVC + MYSQLi + AJAX)
 ====================================================================
 
 1. PURPOSE
 -----------
-This feature allows the Admin to customize:
-✔ Color theme (choose from 6 palettes)
-✔ Font style (choose from 4 fonts)
-✔ Live preview on settings page (temporary)
-✔ Save theme and font in database (permanent)
-✔ Applied globally using header.php
+The admin should be able to customize:
+- Website Theme Colors (from 6 predefined color palettes)
+- Font Style (from 4 predefined fonts)
+- Preview changes before saving
+- Apply permanently (saved in database)
+- Automatically load theme and font in all pages (via header.php)
+
+This improves UI flexibility — admin can set brand colors, adjust fonts,
+and ensure theme consistency throughout the site.
 
 ====================================================================
-2. FOLDER STRUCTURE (MVC)
+2. FOLDER STRUCTURE
 ====================================================================
 project_root/
 │
+├── index.php                    → Central router
 ├── config/
-│   └── db.php
+│   └── db.php                   → MySQLi connection file
 │
 ├── app/
 │   ├── controllers/
@@ -28,32 +31,45 @@ project_root/
 │   │   └── Settings.php
 │   └── views/
 │       └── settings/
-│           ├── settings.php
-│           └── settings.js
+│           ├── settings.php     → Settings Page (HTML + UI)
+│           └── settings.js      → AJAX + preview logic
 │
 ├── includes/
-│   └── header.php  → Loads applied theme/font from DB
+│   └── header.php               → Loads saved theme and font globally
 │
-└── index.php       → Main entry point (routes)
+└── assets/
+    ├── css/
+    ├── js/
+    └── images/
 
 ====================================================================
-3. DATABASE TABLE
+3. DATABASE DESIGN
 ====================================================================
 
 CREATE TABLE settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  primary_color VARCHAR(20),
-  secondary_color VARCHAR(20),
-  accent_color VARCHAR(20),
-  font_family VARCHAR(50)
+  primary_color VARCHAR(20) NOT NULL,
+  secondary_color VARCHAR(20) NOT NULL,
+  accent_color VARCHAR(20) NOT NULL,
+  font_family VARCHAR(50) NOT NULL
 );
 
-Insert one default row:
+Insert one default row for site-wide default theme:
 INSERT INTO settings (primary_color, secondary_color, accent_color, font_family)
 VALUES ('#1A1A1A', '#E50914', '#FFFFFF', 'Arial, sans-serif');
 
+Column Explanation:
+- primary_color   → Background or base color (page background)
+- secondary_color → Highlight color (buttons, links)
+- accent_color    → Text or accent color
+- font_family     → Global font family
+
+Note:
+We only keep one record in `settings` table.
+You can extend it to multiple themes or user-specific preferences later.
+
 ====================================================================
-4. MODEL FILE — app/models/Settings.php
+4. MODEL LAYER — app/models/Settings.php
 ====================================================================
 <?php
 class Settings {
@@ -62,24 +78,36 @@ class Settings {
         $this->conn = $db;
     }
 
+    // Fetch the current theme and font
     public function getSettings() {
         $result = $this->conn->query("SELECT * FROM settings LIMIT 1");
         return $result->fetch_assoc();
     }
 
+    // Update color palette and font in DB
     public function updateSettings($primary, $secondary, $accent, $font) {
-        $stmt = $this->conn->prepare("UPDATE settings SET primary_color=?, secondary_color=?, accent_color=?, font_family=? WHERE id=1");
+        $stmt = $this->conn->prepare("
+            UPDATE settings 
+            SET primary_color=?, secondary_color=?, accent_color=?, font_family=? 
+            WHERE id=1
+        ");
         $stmt->bind_param("ssss", $primary, $secondary, $accent, $font);
         return $stmt->execute();
     }
 }
 ?>
 
+Notes:
+- getSettings() is used in header.php (to apply theme globally)
+- updateSettings() is called via AJAX when admin clicks Apply
+
 ====================================================================
-5. CONTROLLER FILE — app/controllers/SettingsController.php
+5. CONTROLLER LAYER — app/controllers/SettingsController.php
 ====================================================================
 <?php
 class SettingsController {
+
+    // Displays settings page
     public function index() {
         include 'config/db.php';
         include 'app/models/Settings.php';
@@ -88,28 +116,43 @@ class SettingsController {
         include 'app/views/settings/settings.php';
     }
 
+    // Handles AJAX request (save settings)
     public function update() {
         include 'config/db.php';
         include 'app/models/Settings.php';
         $model = new Settings($conn);
 
+        // Data comes from JS fetch()
         $data = json_decode(file_get_contents("php://input"), true);
-        $ok = $model->updateSettings($data['primary'], $data['secondary'], $data['accent'], $data['font']);
+
+        $primary   = $data['primary'];
+        $secondary = $data['secondary'];
+        $accent    = $data['accent'];
+        $font      = $data['font'];
+
+        $ok = $model->updateSettings($primary, $secondary, $accent, $font);
         echo json_encode(["success" => $ok]);
     }
 }
 ?>
 
+Notes:
+- The index() function loads settings page.
+- The update() function processes AJAX requests.
+- JSON data is read using file_get_contents("php://input").
+
 ====================================================================
-6. VIEW FILE — app/views/settings/settings.php
+6. VIEW LAYER — app/views/settings/settings.php
 ====================================================================
+
 <?php include 'includes/header.php'; ?>
 
-<div id="settings-page" style="padding:20px;">
-    <h2>🛠 Theme & Font Settings</h2>
+<div id="settings-page" style="padding:30px;">
+    <h2>Admin Settings — Theme and Font Customization</h2>
 
-    <h3>🎨 Choose Color Palette</h3>
+    <h3>Select a Color Palette</h3>
     <div id="color-palettes" style="display:flex; flex-wrap:wrap; gap:20px;">
+
         <?php
         $palettes = [
             ['#1A1A1A','#E50914','#FFFFFF'],
@@ -119,53 +162,63 @@ class SettingsController {
             ['#101820','#FEE715','#FFFFFF'],
             ['#22223B','#4A4E69','#9A8C98']
         ];
-        $i = 0;
-        foreach ($palettes as $p):
-        ?>
-        <div class="palette" data-primary="<?= $p[0] ?>" data-secondary="<?= $p[1] ?>" data-accent="<?= $p[2] ?>"
-             style="border:1px solid #ccc; padding:10px; cursor:pointer;">
-            <div style="background:<?= $p[0] ?>;height:20px;"></div>
-            <div style="background:<?= $p[1] ?>;height:20px;"></div>
-            <div style="background:<?= $p[2] ?>;height:20px;"></div>
+        $i = 1;
+        foreach ($palettes as $p): ?>
+        <div class="palette"
+             data-primary="<?= $p[0] ?>" data-secondary="<?= $p[1] ?>" data-accent="<?= $p[2] ?>"
+             style="border:1px solid #ccc; width:120px; text-align:center; cursor:pointer;">
+            <div style="background:<?= $p[0] ?>; height:30px;"></div>
+            <div style="background:<?= $p[1] ?>; height:30px;"></div>
+            <div style="background:<?= $p[2] ?>; height:30px;"></div>
             <button class="preview-btn" data-id="<?= $i ?>">Preview</button>
         </div>
         <?php $i++; endforeach; ?>
+
     </div>
 
-    <h3 style="margin-top:30px;">🅰 Choose Font Style</h3>
-    <div id="fonts">
+    <h3 style="margin-top:40px;">Select a Font Style</h3>
+    <div id="font-section">
         <?php
-        $fonts = ['Arial, sans-serif', 'Poppins, sans-serif', 'Courier New, monospace', 'Georgia, serif'];
-        foreach ($fonts as $f):
-        ?>
-        <div style="margin-bottom:10px;">
+        $fonts = [
+            'Arial, sans-serif',
+            'Poppins, sans-serif',
+            'Courier New, monospace',
+            'Georgia, serif'
+        ];
+        foreach ($fonts as $f): ?>
+        <div style="margin-bottom:15px;">
             <p style="font-family:<?= $f ?>;">Sample text in <?= $f ?></p>
             <button class="font-preview" data-font="<?= $f ?>">Preview Font</button>
         </div>
         <?php endforeach; ?>
     </div>
 
-    <button id="apply-settings" style="margin-top:20px;">💾 Apply Settings</button>
+    <button id="apply-settings" style="margin-top:20px;">Apply Settings</button>
 </div>
 
 <script src="app/views/settings/settings.js"></script>
 
 ====================================================================
-7. JAVASCRIPT (AJAX + PREVIEW) — app/views/settings/settings.js
+7. JAVASCRIPT (AJAX + LIVE PREVIEW)
 ====================================================================
-const page = document.getElementById("settings-page");
-let selected = { primary: null, secondary: null, accent: null, font: null };
 
+File: app/views/settings/settings.js
+------------------------------------
+const settingsPage = document.getElementById("settings-page");
+let selected = { primary:null, secondary:null, accent:null, font:null };
+
+// Handle color palette preview
 document.querySelectorAll(".preview-btn").forEach(btn => {
     btn.addEventListener("click", e => {
-        const parent = e.target.closest(".palette");
-        selected.primary = parent.dataset.primary;
-        selected.secondary = parent.dataset.secondary;
-        selected.accent = parent.dataset.accent;
+        const palette = e.target.closest(".palette");
+        selected.primary = palette.dataset.primary;
+        selected.secondary = palette.dataset.secondary;
+        selected.accent = palette.dataset.accent;
         applyPreview();
     });
 });
 
+// Handle font preview
 document.querySelectorAll(".font-preview").forEach(btn => {
     btn.addEventListener("click", e => {
         selected.font = e.target.dataset.font;
@@ -173,15 +226,17 @@ document.querySelectorAll(".font-preview").forEach(btn => {
     });
 });
 
+// Apply preview temporarily on this page
 function applyPreview() {
-    if (selected.primary) page.style.background = selected.primary;
-    if (selected.secondary) page.style.color = selected.secondary;
-    if (selected.font) page.style.fontFamily = selected.font;
+    if (selected.primary) settingsPage.style.background = selected.primary;
+    if (selected.secondary) settingsPage.style.color = selected.secondary;
+    if (selected.font) settingsPage.style.fontFamily = selected.font;
 }
 
+// Save theme permanently in database
 document.getElementById("apply-settings").addEventListener("click", () => {
     if (!selected.primary || !selected.font) {
-        alert("Please select a color and a font before applying!");
+        alert("Please select both a color palette and a font before applying!");
         return;
     }
 
@@ -190,42 +245,50 @@ document.getElementById("apply-settings").addEventListener("click", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(selected)
     })
-    .then(r => r.json())
-    .then(res => {
-        if (res.success) alert("Theme updated successfully!");
-        else alert("Error saving settings.");
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert("Theme saved successfully. Refresh the page to apply globally.");
+        } else {
+            alert("Failed to save theme.");
+        }
     });
 });
 
 ====================================================================
-8. HEADER FILE — includes/header.php
+8. HEADER FILE (GLOBAL THEME LOADER)
 ====================================================================
+
+File: includes/header.php
+-------------------------
 <?php
 include 'config/db.php';
 include 'app/models/Settings.php';
 $model = new Settings($conn);
 $theme = $model->getSettings();
 ?>
+
 <style>
 body {
     background: <?= $theme['primary_color'] ?>;
     color: <?= $theme['accent_color'] ?>;
     font-family: <?= $theme['font_family'] ?>;
 }
-a, h1, h2, h3, button {
+button, a, h1, h2, h3 {
     color: <?= $theme['secondary_color'] ?>;
 }
 button {
     background: <?= $theme['secondary_color'] ?>;
     color: #fff;
     border: none;
-    padding: 8px 12px;
+    padding: 8px 14px;
+    border-radius: 6px;
     cursor: pointer;
 }
 </style>
 
 ====================================================================
-9. CONTROLLER ROUTING (index.php)
+9. INDEX ROUTER (Simple MVC Dispatcher)
 ====================================================================
 <?php
 $controller = $_GET['controller'] ?? 'settings';
@@ -240,24 +303,49 @@ if ($controller === 'settings') {
 ?>
 
 ====================================================================
-10. FEATURE SUMMARY
+10. ADMIN ORDER MANAGEMENT CONNECTION
 ====================================================================
-✔ Admin can pick 1 of 6 color palettes (3 shades each)  
-✔ Admin can preview theme live (only changes settings page)  
-✔ Admin can preview fonts instantly  
-✔ “Apply” saves the theme permanently in database (via AJAX)  
-✔ New color/font automatically applies to all pages (through header.php)  
-✔ Uses MVC separation (Model, Controller, View) for maintainability  
+Once theme settings are applied:
+- The Admin Dashboard (Order Summary and Order Management pages)
+  automatically use the new theme because every page includes header.php.
+
+In admin/order_list.php or admin/order_details.php, simply:
+<?php include 'includes/header.php'; ?>
+
+This ensures color, font, and accent are globally applied to all admin pages.
+
+Admin can modify theme anytime using settings page, and changes reflect globally.
 
 ====================================================================
-11. FUTURE IMPROVEMENTS
+11. AJAX FLOW SUMMARY
 ====================================================================
-- Add “Reset to Default” button  
-- Store admin-wise preferences (if multiple admins)  
-- Add live preview for all pages using localStorage  
-- Allow uploading custom fonts  
-- Store dark/light mode toggle in settings table  
+Step-by-step data flow:
+1. Admin clicks Preview → updates local selected object → applyPreview() updates page styles temporarily.
+2. Admin clicks Apply → JavaScript sends JSON to:
+   index.php?controller=settings&action=update
+3. Controller decodes JSON → calls model updateSettings() → updates DB.
+4. AJAX returns {success:true} → alert confirmation.
+5. On next page load → header.php loads new theme colors and fonts.
 
 ====================================================================
-END OF SETTINGS PAGE IMPLEMENTATION (MVC + AJAX)
+12. IMPROVEMENTS AND EXTENSIONS
+====================================================================
+- Add dark/light mode toggle and store in DB.
+- Add Reset to Default button to restore default palette and font.
+- Save multiple themes (theme_id) and allow switching.
+- Store preview theme temporarily in localStorage.
+- Make font preview real-time while typing.
+- Restrict access to admin users using session authentication.
+
+====================================================================
+13. FLOW SUMMARY
+====================================================================
+1. Admin opens Settings Page (SettingsController@index)
+2. Selects color palette and font → preview applied temporarily
+3. Clicks Apply → AJAX saves theme permanently
+4. Database updated → new theme loads everywhere via header.php
+5. Admin can re-open page anytime to change theme again
+
+====================================================================
+END OF SETTINGS PAGE (MVC + MYSQLi + AJAX + THEME SYSTEM)
 ====================================================================
