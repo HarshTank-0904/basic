@@ -1,249 +1,269 @@
-===========================================
-FILE 1: admin_create_order.php (HTML + PHP)
-===========================================
 
-<?php include 'includes/header.php'; ?>
-<?php include 'config/db.php'; ?>
 
-<form id="userSection">
-    <h2>Create Order</h2>
 
-    <label><input type="radio" name="user_type" value="existing" checked> Existing User</label>
-    <label><input type="radio" name="user_type" value="new"> New User</label>
+====================================================================
+1. DATABASE TABLE (coupons)
+====================================================================
 
-    <div id="existingUserBox">
-        <label>Username</label><br>
-        <input type="text" id="existing_username" name="existing_username" autocomplete="off">
-        <input type="hidden" id="existing_user_id" name="existing_user_id">
-    </div>
+CREATE TABLE coupons (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(100) NOT NULL,
+  discount_type ENUM('flat','percent') NOT NULL,
+  discount_value DECIMAL(10,2) NOT NULL,
+  product_type ENUM('all','limited') NOT NULL,
+  usage_type ENUM('unlimited','limited') NOT NULL,
+  max_usage INT DEFAULT NULL,
+  date_type ENUM('anytime','limited') NOT NULL,
+  start_date DATE DEFAULT NULL,
+  end_date DATE DEFAULT NULL,
+  user_type ENUM('all','limited') NOT NULL,
+  status ENUM('active','inactive') DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
-    <div id="newUserBox" style="display:none;">
-        <label>Username</label><br>
-        <input type="text" id="new_username" name="new_username"><br><br>
+CREATE TABLE coupon_products (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  coupon_id INT,
+  product_id INT
+);
 
-        <label>Email</label><br>
-        <input type="text" id="new_email" name="new_email"><br><br>
+CREATE TABLE coupon_users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  coupon_id INT,
+  user_id INT
+);
 
-        <label>Password</label><br>
-        <input type="password" id="new_password" name="new_password"><br><br>
-    </div>
+====================================================================
+2. MODEL (app/models/Coupon.php)
+====================================================================
+
+<?php
+class Coupon {
+    private $conn;
+    public function __construct($db) {
+        $this->conn = $db;
+    }
+
+    public function insertCoupon($data) {
+        $stmt = $this->conn->prepare("
+            INSERT INTO coupons 
+            (code, discount_type, discount_value, product_type, usage_type, max_usage, date_type, start_date, end_date, user_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->bind_param("ssdsdissss",
+            $data['code'],
+            $data['discount_type'],
+            $data['discount_value'],
+            $data['product_type'],
+            $data['usage_type'],
+            $data['max_usage'],
+            $data['date_type'],
+            $data['start_date'],
+            $data['end_date'],
+            $data['user_type']
+        );
+        $stmt->execute();
+        return $this->conn->insert_id;
+    }
+
+    public function insertCouponProducts($coupon_id, $products) {
+        foreach ($products as $p) {
+            $stmt = $this->conn->prepare("INSERT INTO coupon_products (coupon_id, product_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $coupon_id, $p);
+            $stmt->execute();
+        }
+    }
+
+    public function insertCouponUsers($coupon_id, $users) {
+        foreach ($users as $u) {
+            $stmt = $this->conn->prepare("INSERT INTO coupon_users (coupon_id, user_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $coupon_id, $u);
+            $stmt->execute();
+        }
+    }
+
+    public function getAllCoupons() {
+        return $this->conn->query("SELECT * FROM coupons ORDER BY id DESC");
+    }
+
+    public function getCoupon($id) {
+        $stmt = $this->conn->prepare("SELECT * FROM coupons WHERE id=?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_assoc();
+    }
+
+    public function updateCoupon($data) {
+        $stmt = $this->conn->prepare("
+            UPDATE coupons SET
+            code=?, discount_type=?, discount_value=?, product_type=?, usage_type=?, max_usage=?, date_type=?, start_date=?, end_date=?, user_type=?
+            WHERE id=?
+        ");
+        $stmt->bind_param("ssdsdissssi",
+            $data['code'],
+            $data['discount_type'],
+            $data['discount_value'],
+            $data['product_type'],
+            $data['usage_type'],
+            $data['max_usage'],
+            $data['date_type'],
+            $data['start_date'],
+            $data['end_date'],
+            $data['user_type'],
+            $data['id']
+        );
+        $stmt->execute();
+    }
+
+    public function deleteCoupon($id) {
+        $stmt = $this->conn->prepare("DELETE FROM coupons WHERE id=?");
+        $stmt->bind_param("i", $id);
+        return $stmt->execute();
+    }
+}
+?>
+
+====================================================================
+3. CONTROLLER (app/controllers/CouponController.php)
+====================================================================
+
+<?php
+class CouponController {
+    public function index() {
+        include 'config/db.php';
+        include 'app/models/Coupon.php';
+        $model = new Coupon($conn);
+        $coupons = $model->getAllCoupons();
+        include 'app/views/admin/coupons.php';
+    }
+
+    public function insert() {
+        include 'config/db.php';
+        include 'app/models/Coupon.php';
+        $model = new Coupon($conn);
+
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        $coupon_id = $model->insertCoupon($data);
+
+        if ($data['product_type'] == "limited") {
+            $model->insertCouponProducts($coupon_id, $data['products']);
+        }
+
+        if ($data['user_type'] == "limited") {
+            $model->insertCouponUsers($coupon_id, $data['users']);
+        }
+
+        echo json_encode(["success" => true]);
+    }
+
+    public function delete() {
+        include 'config/db.php';
+        include 'app/models/Coupon.php';
+        $model = new Coupon($conn);
+
+        $id = $_POST['id'];
+        $model->deleteCoupon($id);
+        echo json_encode(["success" => true]);
+    }
+}
+?>
+
+====================================================================
+4. VIEW (app/views/admin/coupons.php)
+====================================================================
+
+<form id="couponForm">
+
+Coupon Code:<br>
+<input type="text" name="code"><br><br>
+
+Discount Type:<br>
+<input type="radio" name="discount_type" value="flat"> Flat  
+<input type="radio" name="discount_type" value="percent"> Percentage<br><br>
+
+Discount Value:<br>
+<input type="text" name="discount_value"><br><br>
+
+Applicable Products:<br>
+<input type="radio" name="product_type" value="all"> All Products  
+<input type="radio" name="product_type" value="limited"> Limited Products<br><br>
+
+<select multiple name="products[]" id="productSelect"></select><br><br>
+
+Applicable Users:<br>
+<input type="radio" name="user_type" value="all"> All Users  
+<input type="radio" name="user_type" value="limited"> Limited Users<br><br>
+
+<select multiple name="users[]" id="userSelect"></select><br><br>
+
+Usage Type:<br>
+<input type="radio" name="usage_type" value="unlimited"> Unlimited  
+<input type="radio" name="usage_type" value="limited"> Limited Usage<br><br>
+
+Max Usage:<br>
+<input type="text" name="max_usage"><br><br>
+
+Validity:<br>
+<input type="radio" name="date_type" value="anytime"> Anytime  
+<input type="radio" name="date_type" value="limited"> Date Range<br><br>
+
+Start Date:<br>
+<input type="date" name="start_date"><br><br>
+
+End Date:<br>
+<input type="date" name="end_date"><br><br>
+
+<button type="submit">Create Coupon</button>
 </form>
 
-<hr>
+<div id="couponList"></div>
 
-<h3>Select Products</h3>
+====================================================================
+5. AJAX + jQuery FILE (app/views/admin/coupon.js)
+====================================================================
 
-<div>
-    <label>Choose Product</label><br>
-    <select id="product_select">
-        <?php
-        $result = mysqli_query($conn, "SELECT id, name, price FROM products");
-        while($p = mysqli_fetch_assoc($result)){
-            echo "<option value='".$p['id']."' data-price='".$p['price']."'>".$p['name']."</option>";
-        }
-        ?>
-    </select>
+$(document).ready(function() {
 
-    <div style="margin-top:10px;">
-        <button id="qty_minus">-</button>
-        <input type="text" id="qty" value="1" readonly>
-        <button id="qty_plus">+</button>
-    </div>
+    $('#couponForm').on('submit', function(e){
+        e.preventDefault();
 
-    <button id="addProduct">Add Product</button>
-</div>
-
-<table border="1" width="100%" style="margin-top:20px;" id="orderTable">
-    <tr>
-        <th>Product</th>
-        <th>Qty</th>
-        <th>Price</th>
-        <th>Total</th>
-        <th>Remove</th>
-    </tr>
-</table>
-
-<button id="placeOrder" style="margin-top:20px;">Place Order</button>
-
-<div id="orderResult" style="margin-top:20px; font-weight:bold;"></div>
-
-<script src="app/views/admin/create_order.js"></script>
-
-
-===========================================
-FILE 2: create_order.js (AJAX + jQuery)
-===========================================
-
-$(document).ready(function(){
-
-    $('input[name="user_type"]').on('change', function(){
-        if($(this).val() === 'existing'){
-            $('#existingUserBox').show();
-            $('#newUserBox').hide();
-        } else {
-            $('#existingUserBox').hide();
-            $('#newUserBox').show();
-        }
-    });
-
-    $('#existing_username').keyup(function(){
-        let query = $(this).val();
-        if(query.length > 1){
-            $.ajax({
-                url: 'index.php?controller=order&action=searchUser',
-                type: 'POST',
-                data: {keyword: query},
-                success: function(data){
-                    let users = JSON.parse(data);
-                    $('#existing_username').autocomplete({
-                        source: users.map(u => u.username),
-                        select: function(e, ui){
-                            let selectedUser = users.find(x => x.username === ui.item.value);
-                            $('#existing_user_id').val(selectedUser.id);
-                        }
-                    });
-                }
-            });
-        }
-    });
-
-    $('#qty_plus').click(function(){
-        let q = parseInt($('#qty').val());
-        $('#qty').val(q+1);
-    });
-
-    $('#qty_minus').click(function(){
-        let q = parseInt($('#qty').val());
-        if(q > 1){
-            $('#qty').val(q-1);
-        }
-    });
-
-    $('#addProduct').click(function(){
-        let id = $('#product_select').val();
-        let name = $('#product_select option:selected').text();
-        let price = $('#product_select option:selected').data('price');
-        let qty = parseInt($('#qty').val());
-        let total = price * qty;
-
-        let row = "<tr data-id='"+id+"'>"+
-                  "<td>"+name+"</td>"+
-                  "<td>"+qty+"</td>"+
-                  "<td>"+price+"</td>"+
-                  "<td>"+total+"</td>"+
-                  "<td><button class='removeRow'>X</button></td>"+
-                  "</tr>";
-
-        $('#orderTable').append(row);
-    });
-
-    $(document).on('click', '.removeRow', function(){
-        $(this).closest('tr').remove();
-    });
-
-    $('#placeOrder').click(function(){
-        let userType = $('input[name="user_type"]:checked').val();
-        let formData = new FormData();
-
-        formData.append('userType', userType);
-
-        if(userType === 'existing'){
-            formData.append('user_id', $('#existing_user_id').val());
-        } else {
-            formData.append('new_username', $('#new_username').val());
-            formData.append('new_email', $('#new_email').val());
-            formData.append('new_password', $('#new_password').val());
-        }
-
-        let products = [];
-        $('#orderTable tr[data-id]').each(function(){
-            let id = $(this).data('id');
-            let qty = $(this).find('td').eq(1).text();
-            products.push({product_id:id, quantity:qty});
-        });
-
-        formData.append('products', JSON.stringify(products));
+        var formData = {
+            code: $('[name="code"]').val(),
+            discount_type: $('[name="discount_type"]:checked').val(),
+            discount_value: $('[name="discount_value"]').val(),
+            product_type: $('[name="product_type"]:checked').val(),
+            usage_type: $('[name="usage_type"]:checked').val(),
+            max_usage: $('[name="max_usage"]').val(),
+            date_type: $('[name="date_type"]:checked').val(),
+            start_date: $('[name="start_date"]').val(),
+            end_date: $('[name="end_date"]').val(),
+            user_type: $('[name="user_type"]:checked').val(),
+            products: $('#productSelect').val(),
+            users: $('#userSelect').val()
+        };
 
         $.ajax({
-            url: 'index.php?controller=order&action=createOrder',
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
+            url: "index.php?controller=coupon&action=insert",
+            type: "POST",
+            data: JSON.stringify(formData),
+            contentType: "application/json",
             success: function(res){
-                $('#orderResult').html(res);
+                alert("Coupon created");
             }
+        });
+    });
+
+    $(document).on('click', '.deleteCoupon', function(){
+        var id = $(this).data("id");
+
+        $.post("index.php?controller=coupon&action=delete", {id:id}, function(){
+            alert("Deleted");
         });
     });
 
 });
 
-===========================================
-FILE 3: OrderController.php (Controller PHP)
-===========================================
-
-<?php
-class OrderController {
-
-    public function searchUser(){
-        include 'config/db.php';
-        $keyword = $_POST['keyword'];
-        $res = mysqli_query($conn, "SELECT id, username FROM users WHERE username LIKE '%$keyword%' LIMIT 10");
-
-        $users = [];
-        while($u = mysqli_fetch_assoc($res)){
-            $users[] = $u;
-        }
-        echo json_encode($users);
-    }
-
-    public function createOrder(){
-        include 'config/db.php';
-
-        $userType = $_POST['userType'];
-
-        if($userType == "existing"){
-            $user_id = $_POST['user_id'];
-        } else {
-            $username = $_POST['new_username'];
-            $email = $_POST['new_email'];
-            $password = $_POST['new_password'];
-
-            mysqli_query($conn, "INSERT INTO users (username,email,password) VALUES ('$username','$email','$password')");
-            $user_id = mysqli_insert_id($conn);
-        }
-
-        $products = json_decode($_POST['products'], true);
-
-        mysqli_query($conn, "INSERT INTO orders (user_id,order_status,payment_status,total_amount,created_at) VALUES ($user_id,'Pending','Pending',0,NOW())");
-        $order_id = mysqli_insert_id($conn);
-
-        $total = 0;
-
-        foreach($products as $p){
-            $product_id = $p['product_id'];
-            $qty = $p['quantity'];
-
-            $res = mysqli_query($conn, "SELECT name,price FROM products WHERE id=$product_id");
-            $pr = mysqli_fetch_assoc($res);
-
-            $name = $pr['name'];
-            $price = $pr['price'];
-            $line_total = $price * $qty;
-            $total += $line_total;
-
-            mysqli_query($conn, "INSERT INTO order_items (order_id,product_id,product_name,price,quantity,total_price)
-            VALUES ($order_id,$product_id,'$name',$price,$qty,$line_total)");
-        }
-
-        mysqli_query($conn, "UPDATE orders SET total_amount=$total WHERE id=$order_id");
-
-        echo "Order created successfully. Order ID: ".$order_id;
-    }
-
-}
-
-?>
-
-
-
+====================================================================
+END OF FULL COUPON MANAGEMENT SYSTEM (WITH USER ACCESS CONTROL)
+====================================================================
