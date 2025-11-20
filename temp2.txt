@@ -1,40 +1,183 @@
 
 
 
-====================================================================
-1. DATABASE TABLE (coupons)
-====================================================================
-
-CREATE TABLE coupons (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  code VARCHAR(100) NOT NULL,
-  discount_type ENUM('flat','percent') NOT NULL,
-  discount_value DECIMAL(10,2) NOT NULL,
-  product_type ENUM('all','limited') NOT NULL,
-  usage_type ENUM('unlimited','limited') NOT NULL,
-  max_usage INT DEFAULT NULL,
-  date_type ENUM('anytime','limited') NOT NULL,
-  start_date DATE DEFAULT NULL,
-  end_date DATE DEFAULT NULL,
-  user_type ENUM('all','limited') NOT NULL,
-  status ENUM('active','inactive') DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE coupon_products (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  coupon_id INT,
-  product_id INT
-);
-
-CREATE TABLE coupon_users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  coupon_id INT,
-  user_id INT
-);
 
 ====================================================================
-2. MODEL (app/models/Coupon.php)
+APPLYING COUPONS ON FRONT SIDE DURING ORDER PLACEMENT (MVC + AJAX)
+====================================================================
+
+1. OVERVIEW
+-----------
+User is on checkout page.  
+There is an input box for entering coupon code.  
+User enters coupon code and clicks Apply.  
+jQuery sends AJAX to controller where coupon rules are checked.  
+Controller responds with:
+- final discount amount
+- new total
+- success/failure message
+
+After that final order placement includes discount details.
+
+====================================================================
+2. FRONT-END CHECKOUT PAGE STRUCTURE
+====================================================================
+
+<input type="text" id="coupon_code" placeholder="Enter coupon code">
+<button id="applyCoupon">Apply Coupon</button>
+
+<div id="couponMessage"></div>
+
+<input type="hidden" id="subtotal" value="5000">
+<input type="hidden" id="tax" value="250">
+<input type="hidden" id="shipping" value="50">
+<input type="hidden" id="discount" value="0">
+
+<p>Total Amount: <span id="grandTotal">5300</span></p>
+
+<button id="placeOrder">Place Order</button>
+
+====================================================================
+3. AJAX + JQUERY FOR APPLY COUPON
+====================================================================
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+
+$('#applyCoupon').on('click', function() {
+    let code = $('#coupon_code').val();
+    let subtotal = $('#subtotal').val();
+    let product_ids = []; 
+    $('.product-item').each(function(){
+        product_ids.push($(this).data('productid'));
+    });
+    let user_id = $('#user_id').val();
+
+    $.ajax({
+        url: 'index.php?controller=coupon&action=validate',
+        type: 'POST',
+        data: {
+            code: code,
+            subtotal: subtotal,
+            products: product_ids,
+            user_id: user_id
+        },
+        success: function(res) {
+            let data = JSON.parse(res);
+            if(data.status == 'success') {
+                $('#discount').val(data.discount);
+                $('#grandTotal').html(data.new_total);
+                $('#couponMessage').html(data.message);
+            } else {
+                $('#couponMessage').html(data.message);
+            }
+        }
+    });
+});
+
+$('#placeOrder').on('click', function(){
+    $.ajax({
+        url: 'index.php?controller=order&action=place',
+        type: 'POST',
+        data: {
+            subtotal: $('#subtotal').val(),
+            tax: $('#tax').val(),
+            shipping: $('#shipping').val(),
+            discount: $('#discount').val(),
+            coupon_code: $('#coupon_code').val()
+        },
+        success: function(res){
+            let data = JSON.parse(res);
+            if(data.status == 'success'){
+                alert("Order placed");
+                location.reload();
+            }
+        }
+    });
+});
+</script>
+
+====================================================================
+4. CONTROLLER: CouponController.php
+====================================================================
+
+<?php
+class CouponController {
+    public function validate() {
+        include 'config/db.php';
+        include 'app/models/Coupon.php';
+        $model = new Coupon($conn);
+
+        $code = $_POST['code'];
+        $subtotal = $_POST['subtotal'];
+        $products = $_POST['products'];
+        $user_id = $_POST['user_id'];
+
+        $coupon = $model->getCoupon($code);
+
+        if(!$coupon){
+            echo json_encode(["status"=>"error","message"=>"Invalid coupon"]);
+            return;
+        }
+
+        if($coupon['is_for_specific_user'] == 1){
+            $allowed_users = explode(',', $coupon['users']);
+            if(!in_array($user_id, $allowed_users)){
+                echo json_encode(["status"=>"error","message"=>"Coupon not available for this user"]);
+                return;
+            }
+        }
+
+        if($coupon['is_for_specific_products'] == 1){
+            $allowed_products = explode(',', $coupon['product_ids']);
+            $match = false;
+            foreach($products as $p){
+                if(in_array($p, $allowed_products)){
+                    $match = true;
+                }
+            }
+            if(!$match){
+                echo json_encode(["status"=>"error","message"=>"Coupon not valid for selected products"]);
+                return;
+            }
+        }
+
+        if($coupon['limit_type'] == 'limited'){
+            if($coupon['used_count'] >= $coupon['limit_number']){
+                echo json_encode(["status"=>"error","message"=>"Coupon usage limit reached"]);
+                return;
+            }
+        }
+
+        if($coupon['time_type'] == 'specific'){
+            $now = date('Y-m-d');
+            if($now < $coupon['start_date'] || $now > $coupon['end_date']){
+                echo json_encode(["status"=>"error","message"=>"Coupon expired or inactive"]);
+                return;
+            }
+        }
+
+        if($coupon['discount_type'] == 'flat'){
+            $discount = $coupon['discount_value'];
+        } else {
+            $discount = ($subtotal * $coupon['discount_value']) / 100;
+        }
+
+        $tax = 0;
+        $shipping = 0;
+        $new_total = ($subtotal + $tax + $shipping) - $discount;
+
+        echo json_encode([
+            "status"=>"success",
+            "discount"=>$discount,
+            "new_total"=>$new_total,
+            "message"=>"Coupon applied"
+        ]);
+    }
+}
+
+====================================================================
+5. MODEL: Coupon.php
 ====================================================================
 
 <?php
@@ -43,227 +186,80 @@ class Coupon {
     public function __construct($db) {
         $this->conn = $db;
     }
-
-    public function insertCoupon($data) {
-        $stmt = $this->conn->prepare("
-            INSERT INTO coupons 
-            (code, discount_type, discount_value, product_type, usage_type, max_usage, date_type, start_date, end_date, user_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->bind_param("ssdsdissss",
-            $data['code'],
-            $data['discount_type'],
-            $data['discount_value'],
-            $data['product_type'],
-            $data['usage_type'],
-            $data['max_usage'],
-            $data['date_type'],
-            $data['start_date'],
-            $data['end_date'],
-            $data['user_type']
-        );
-        $stmt->execute();
-        return $this->conn->insert_id;
-    }
-
-    public function insertCouponProducts($coupon_id, $products) {
-        foreach ($products as $p) {
-            $stmt = $this->conn->prepare("INSERT INTO coupon_products (coupon_id, product_id) VALUES (?, ?)");
-            $stmt->bind_param("ii", $coupon_id, $p);
-            $stmt->execute();
-        }
-    }
-
-    public function insertCouponUsers($coupon_id, $users) {
-        foreach ($users as $u) {
-            $stmt = $this->conn->prepare("INSERT INTO coupon_users (coupon_id, user_id) VALUES (?, ?)");
-            $stmt->bind_param("ii", $coupon_id, $u);
-            $stmt->execute();
-        }
-    }
-
-    public function getAllCoupons() {
-        return $this->conn->query("SELECT * FROM coupons ORDER BY id DESC");
-    }
-
-    public function getCoupon($id) {
-        $stmt = $this->conn->prepare("SELECT * FROM coupons WHERE id=?");
-        $stmt->bind_param("i", $id);
+    public function getCoupon($code) {
+        $stmt = $this->conn->prepare("SELECT * FROM coupons WHERE code=?");
+        $stmt->bind_param("s", $code);
         $stmt->execute();
         return $stmt->get_result()->fetch_assoc();
     }
-
-    public function updateCoupon($data) {
-        $stmt = $this->conn->prepare("
-            UPDATE coupons SET
-            code=?, discount_type=?, discount_value=?, product_type=?, usage_type=?, max_usage=?, date_type=?, start_date=?, end_date=?, user_type=?
-            WHERE id=?
-        ");
-        $stmt->bind_param("ssdsdissssi",
-            $data['code'],
-            $data['discount_type'],
-            $data['discount_value'],
-            $data['product_type'],
-            $data['usage_type'],
-            $data['max_usage'],
-            $data['date_type'],
-            $data['start_date'],
-            $data['end_date'],
-            $data['user_type'],
-            $data['id']
-        );
-        $stmt->execute();
-    }
-
-    public function deleteCoupon($id) {
-        $stmt = $this->conn->prepare("DELETE FROM coupons WHERE id=?");
-        $stmt->bind_param("i", $id);
-        return $stmt->execute();
-    }
 }
-?>
 
 ====================================================================
-3. CONTROLLER (app/controllers/CouponController.php)
+6. CONTROLLER: OrderController.php
 ====================================================================
 
 <?php
-class CouponController {
-    public function index() {
+class OrderController {
+    public function place() {
         include 'config/db.php';
-        include 'app/models/Coupon.php';
-        $model = new Coupon($conn);
-        $coupons = $model->getAllCoupons();
-        include 'app/views/admin/coupons.php';
-    }
 
-    public function insert() {
-        include 'config/db.php';
-        include 'app/models/Coupon.php';
-        $model = new Coupon($conn);
+        $subtotal = $_POST['subtotal'];
+        $tax = $_POST['tax'];
+        $shipping = $_POST['shipping'];
+        $discount = $_POST['discount'];
+        $coupon = $_POST['coupon_code'];
 
-        $data = json_decode(file_get_contents("php://input"), true);
+        $final_total = ($subtotal + $tax + $shipping) - $discount;
 
-        $coupon_id = $model->insertCoupon($data);
+        $sql = "INSERT INTO orders (subtotal, tax, shipping, discount, coupon_code, total_amount, created_at)
+        VALUES ('$subtotal','$tax','$shipping','$discount','$coupon','$final_total',NOW())";
 
-        if ($data['product_type'] == "limited") {
-            $model->insertCouponProducts($coupon_id, $data['products']);
-        }
+        mysqli_query($conn, $sql);
 
-        if ($data['user_type'] == "limited") {
-            $model->insertCouponUsers($coupon_id, $data['users']);
-        }
-
-        echo json_encode(["success" => true]);
-    }
-
-    public function delete() {
-        include 'config/db.php';
-        include 'app/models/Coupon.php';
-        $model = new Coupon($conn);
-
-        $id = $_POST['id'];
-        $model->deleteCoupon($id);
-        echo json_encode(["success" => true]);
+        echo json_encode(["status"=>"success"]);
     }
 }
-?>
 
 ====================================================================
-4. VIEW (app/views/admin/coupons.php)
+7. HOW THE COMPLETE FLOW WORKS
 ====================================================================
 
-<form id="couponForm">
+Step 1
+User enters coupon on checkout page.
 
-Coupon Code:<br>
-<input type="text" name="code"><br><br>
+Step 2
+Apply button triggers AJAX request to CouponController.
 
-Discount Type:<br>
-<input type="radio" name="discount_type" value="flat"> Flat  
-<input type="radio" name="discount_type" value="percent"> Percentage<br><br>
+Step 3
+CouponController checks:
+- coupon existence
+- user applicability
+- product applicability
+- usage limit
+- date validation
+- discount type and calculation
 
-Discount Value:<br>
-<input type="text" name="discount_value"><br><br>
+Step 4
+If valid, controller returns:
+discount amount
+new total price
+success message
 
-Applicable Products:<br>
-<input type="radio" name="product_type" value="all"> All Products  
-<input type="radio" name="product_type" value="limited"> Limited Products<br><br>
+Step 5
+User places order via AJAX to OrderController.
 
-<select multiple name="products[]" id="productSelect"></select><br><br>
+Step 6
+OrderController inserts:
+subtotal
+tax
+shipping
+discount
+coupon_code
+final total
 
-Applicable Users:<br>
-<input type="radio" name="user_type" value="all"> All Users  
-<input type="radio" name="user_type" value="limited"> Limited Users<br><br>
-
-<select multiple name="users[]" id="userSelect"></select><br><br>
-
-Usage Type:<br>
-<input type="radio" name="usage_type" value="unlimited"> Unlimited  
-<input type="radio" name="usage_type" value="limited"> Limited Usage<br><br>
-
-Max Usage:<br>
-<input type="text" name="max_usage"><br><br>
-
-Validity:<br>
-<input type="radio" name="date_type" value="anytime"> Anytime  
-<input type="radio" name="date_type" value="limited"> Date Range<br><br>
-
-Start Date:<br>
-<input type="date" name="start_date"><br><br>
-
-End Date:<br>
-<input type="date" name="end_date"><br><br>
-
-<button type="submit">Create Coupon</button>
-</form>
-
-<div id="couponList"></div>
+Step 7
+Order is created successfully and reloads after success message.
 
 ====================================================================
-5. AJAX + jQuery FILE (app/views/admin/coupon.js)
-====================================================================
-
-$(document).ready(function() {
-
-    $('#couponForm').on('submit', function(e){
-        e.preventDefault();
-
-        var formData = {
-            code: $('[name="code"]').val(),
-            discount_type: $('[name="discount_type"]:checked').val(),
-            discount_value: $('[name="discount_value"]').val(),
-            product_type: $('[name="product_type"]:checked').val(),
-            usage_type: $('[name="usage_type"]:checked').val(),
-            max_usage: $('[name="max_usage"]').val(),
-            date_type: $('[name="date_type"]:checked').val(),
-            start_date: $('[name="start_date"]').val(),
-            end_date: $('[name="end_date"]').val(),
-            user_type: $('[name="user_type"]:checked').val(),
-            products: $('#productSelect').val(),
-            users: $('#userSelect').val()
-        };
-
-        $.ajax({
-            url: "index.php?controller=coupon&action=insert",
-            type: "POST",
-            data: JSON.stringify(formData),
-            contentType: "application/json",
-            success: function(res){
-                alert("Coupon created");
-            }
-        });
-    });
-
-    $(document).on('click', '.deleteCoupon', function(){
-        var id = $(this).data("id");
-
-        $.post("index.php?controller=coupon&action=delete", {id:id}, function(){
-            alert("Deleted");
-        });
-    });
-
-});
-
-====================================================================
-END OF FULL COUPON MANAGEMENT SYSTEM (WITH USER ACCESS CONTROL)
+END
 ====================================================================
