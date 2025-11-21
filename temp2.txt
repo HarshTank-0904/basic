@@ -3,263 +3,191 @@
 
 
 ====================================================================
-APPLYING COUPONS ON FRONT SIDE DURING ORDER PLACEMENT (MVC + AJAX)
+ORDER STATUS NUMBER SYSTEM (ADMIN + USER SIDE)
 ====================================================================
 
-1. OVERVIEW
+1. PURPOSE
 -----------
-User is on checkout page.  
-There is an input box for entering coupon code.  
-User enters coupon code and clicks Apply.  
-jQuery sends AJAX to controller where coupon rules are checked.  
-Controller responds with:
-- final discount amount
-- new total
-- success/failure message
-
-After that final order placement includes discount details.
+The order currently uses text statuses like Pending, Processing, Shipped, Delivered, Cancelled.
+To make it more scalable you want to convert it to a number system.
+Each number represents a stage in the order lifecycle and you can prevent backward movement.
 
 ====================================================================
-2. FRONT-END CHECKOUT PAGE STRUCTURE
+2. STATUS NUMBER MAPPING
 ====================================================================
 
-<input type="text" id="coupon_code" placeholder="Enter coupon code">
-<button id="applyCoupon">Apply Coupon</button>
+Define a fixed array:
 
-<div id="couponMessage"></div>
+$statusMap = [
+  1 => "Pending",
+  2 => "Processing",
+  3 => "Shipped",
+  4 => "Delivered",
+  5 => "Cancelled",
+  6 => "Refund Pending",
+  7 => "Refund Completed"
+];
 
-<input type="hidden" id="subtotal" value="5000">
-<input type="hidden" id="tax" value="250">
-<input type="hidden" id="shipping" value="50">
-<input type="hidden" id="discount" value="0">
-
-<p>Total Amount: <span id="grandTotal">5300</span></p>
-
-<button id="placeOrder">Place Order</button>
-
-====================================================================
-3. AJAX + JQUERY FOR APPLY COUPON
-====================================================================
-
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-
-$('#applyCoupon').on('click', function() {
-    let code = $('#coupon_code').val();
-    let subtotal = $('#subtotal').val();
-    let product_ids = []; 
-    $('.product-item').each(function(){
-        product_ids.push($(this).data('productid'));
-    });
-    let user_id = $('#user_id').val();
-
-    $.ajax({
-        url: 'index.php?controller=coupon&action=validate',
-        type: 'POST',
-        data: {
-            code: code,
-            subtotal: subtotal,
-            products: product_ids,
-            user_id: user_id
-        },
-        success: function(res) {
-            let data = JSON.parse(res);
-            if(data.status == 'success') {
-                $('#discount').val(data.discount);
-                $('#grandTotal').html(data.new_total);
-                $('#couponMessage').html(data.message);
-            } else {
-                $('#couponMessage').html(data.message);
-            }
-        }
-    });
-});
-
-$('#placeOrder').on('click', function(){
-    $.ajax({
-        url: 'index.php?controller=order&action=place',
-        type: 'POST',
-        data: {
-            subtotal: $('#subtotal').val(),
-            tax: $('#tax').val(),
-            shipping: $('#shipping').val(),
-            discount: $('#discount').val(),
-            coupon_code: $('#coupon_code').val()
-        },
-        success: function(res){
-            let data = JSON.parse(res);
-            if(data.status == 'success'){
-                alert("Order placed");
-                location.reload();
-            }
-        }
-    });
-});
-</script>
+Admin will see the text but database will store only the number.
 
 ====================================================================
-4. CONTROLLER: CouponController.php
+3. DATABASE CHANGES FOR ORDERS TABLE
 ====================================================================
 
-<?php
-class CouponController {
-    public function validate() {
-        include 'config/db.php';
-        include 'app/models/Coupon.php';
-        $model = new Coupon($conn);
+In orders table, change the existing "order_status" column:
 
-        $code = $_POST['code'];
-        $subtotal = $_POST['subtotal'];
-        $products = $_POST['products'];
-        $user_id = $_POST['user_id'];
+Old:
+order_status ENUM('Pending','Processing','Shipped','Delivered','Cancelled')
 
-        $coupon = $model->getCoupon($code);
+New:
+order_status INT NOT NULL DEFAULT 1
 
-        if(!$coupon){
-            echo json_encode(["status"=>"error","message"=>"Invalid coupon"]);
-            return;
-        }
+Add new column for refund status is optional because you can store both refund and order status in the same column.
 
-        if($coupon['is_for_specific_user'] == 1){
-            $allowed_users = explode(',', $coupon['users']);
-            if(!in_array($user_id, $allowed_users)){
-                echo json_encode(["status"=>"error","message"=>"Coupon not available for this user"]);
-                return;
-            }
-        }
+If you want separate:
+refund_status INT DEFAULT 0
 
-        if($coupon['is_for_specific_products'] == 1){
-            $allowed_products = explode(',', $coupon['product_ids']);
-            $match = false;
-            foreach($products as $p){
-                if(in_array($p, $allowed_products)){
-                    $match = true;
-                }
-            }
-            if(!$match){
-                echo json_encode(["status"=>"error","message"=>"Coupon not valid for selected products"]);
-                return;
-            }
-        }
-
-        if($coupon['limit_type'] == 'limited'){
-            if($coupon['used_count'] >= $coupon['limit_number']){
-                echo json_encode(["status"=>"error","message"=>"Coupon usage limit reached"]);
-                return;
-            }
-        }
-
-        if($coupon['time_type'] == 'specific'){
-            $now = date('Y-m-d');
-            if($now < $coupon['start_date'] || $now > $coupon['end_date']){
-                echo json_encode(["status"=>"error","message"=>"Coupon expired or inactive"]);
-                return;
-            }
-        }
-
-        if($coupon['discount_type'] == 'flat'){
-            $discount = $coupon['discount_value'];
-        } else {
-            $discount = ($subtotal * $coupon['discount_value']) / 100;
-        }
-
-        $tax = 0;
-        $shipping = 0;
-        $new_total = ($subtotal + $tax + $shipping) - $discount;
-
-        echo json_encode([
-            "status"=>"success",
-            "discount"=>$discount,
-            "new_total"=>$new_total,
-            "message"=>"Coupon applied"
-        ]);
-    }
-}
+But recommended method is to merge into one status field because refund is a part of order lifecycle.
 
 ====================================================================
-5. MODEL: Coupon.php
+4. ACTIVITY TABLE FOR STATUS HISTORY
 ====================================================================
 
-<?php
-class Coupon {
-    private $conn;
-    public function __construct($db) {
-        $this->conn = $db;
-    }
-    public function getCoupon($code) {
-        $stmt = $this->conn->prepare("SELECT * FROM coupons WHERE code=?");
-        $stmt->bind_param("s", $code);
-        $stmt->execute();
-        return $stmt->get_result()->fetch_assoc();
-    }
-}
+Create a table to track all status changes:
+
+CREATE TABLE order_activity (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  order_id INT NOT NULL,
+  old_status INT,
+  new_status INT,
+  changed_by VARCHAR(50),
+  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+Whenever the admin changes status, insert a row into this table.
 
 ====================================================================
-6. CONTROLLER: OrderController.php
+5. PREVENT BACKWARD STATUS CHANGE
 ====================================================================
 
-<?php
-class OrderController {
-    public function place() {
-        include 'config/db.php';
+The logic is simple:
 
-        $subtotal = $_POST['subtotal'];
-        $tax = $_POST['tax'];
-        $shipping = $_POST['shipping'];
-        $discount = $_POST['discount'];
-        $coupon = $_POST['coupon_code'];
+1. Fetch current order_status from orders table.
+2. Fetch requested new status from form or AJAX.
+3. Compare numbers.
 
-        $final_total = ($subtotal + $tax + $shipping) - $discount;
+If new_status < current_status:
+  do not allow update
+  return error message like "Cannot move backward in status flow"
 
-        $sql = "INSERT INTO orders (subtotal, tax, shipping, discount, coupon_code, total_amount, created_at)
-        VALUES ('$subtotal','$tax','$shipping','$discount','$coupon','$final_total',NOW())";
+Example:
+Current = 3 (Shipped)
+New = 2 (Processing)
+Reject update.
 
-        mysqli_query($conn, $sql);
+If new_status > current_status:
+  allow update.
 
-        echo json_encode(["status"=>"success"]);
-    }
-}
-
-====================================================================
-7. HOW THE COMPLETE FLOW WORKS
-====================================================================
-
-Step 1
-User enters coupon on checkout page.
-
-Step 2
-Apply button triggers AJAX request to CouponController.
-
-Step 3
-CouponController checks:
-- coupon existence
-- user applicability
-- product applicability
-- usage limit
-- date validation
-- discount type and calculation
-
-Step 4
-If valid, controller returns:
-discount amount
-new total price
-success message
-
-Step 5
-User places order via AJAX to OrderController.
-
-Step 6
-OrderController inserts:
-subtotal
-tax
-shipping
-discount
-coupon_code
-final total
-
-Step 7
-Order is created successfully and reloads after success message.
+Special case:
+Cancelled (5) and Delivered (4) should be terminal statuses unless refund is involved.
 
 ====================================================================
-END
+6. REFUND STATUS HANDLING
+====================================================================
+
+When the user cancels an order, admin must set:
+
+new_status = 6 (Refund Pending)
+
+When refund completes:
+new_status = 7 (Refund Completed)
+
+Refund statuses are only available if the order previously reached at least 2 (Processing).
+If the order is still Pending, admin may cancel it directly without refund processing.
+
+====================================================================
+7. USING STATUS NUMBERS IN ADMIN PANEL
+====================================================================
+
+Instead of showing dropdown of text, admin will see:
+
+<select name="status">
+  <option value="1">Pending</option>
+  <option value="2">Processing</option>
+  <option value="3">Shipped</option>
+  <option value="4">Delivered</option>
+  <option value="5">Cancelled</option>
+  <option value="6">Refund Pending</option>
+  <option value="7">Refund Completed</option>
+</select>
+
+Admin selects number, controller checks rules, updates database.
+
+====================================================================
+8. MVC CONTROLLER LOGIC FOR STATUS UPDATE
+====================================================================
+
+Steps in controller:
+
+1. Receive new_status from AJAX.
+2. Get current_status from orders table.
+3. If new_status < current_status:
+     return error "Cannot revert to previous status"
+4. Insert entry into order_activity table (old_status, new_status, changed_by).
+5. Update orders table with new status number.
+6. Return success message.
+
+This enforces forward-only movement.
+
+====================================================================
+9. FRONTEND LOGIC FOR BLOCKING OPTIONS
+====================================================================
+
+Disable or hide earlier statuses.
+For example if current status is 3:
+
+Pending (1) disabled
+Processing (2) disabled
+Shipped (3) selected
+Delivered (4) enabled
+Cancelled (5) enabled
+Refund statuses only enabled based on business logic
+
+====================================================================
+10. HOW TO DISPLAY STATUS TO USER
+====================================================================
+
+Because database stores:
+order_status = 3
+
+User sees:
+$statusMap[$order['order_status']]   → Shipped
+
+In admin reports, activity page, invoice, email notifications, etc., always convert number back to text using the mapping array.
+
+====================================================================
+11. ORDER ACTIVITY EXAMPLES
+====================================================================
+
+Order status changed from 1 to 2 → Order moved from Pending to Processing
+Order status changed from 2 to 3 → Order moved from Processing to Shipped
+Order status changed from 3 to 4 → Order moved from Shipped to Delivered
+Order status changed from 4 to 6 → Refund Pending
+Order status changed from 6 to 7 → Refund Completed
+
+Each action is stored in order_activity.
+
+====================================================================
+12. WHY USE NUMBER SYSTEM
+====================================================================
+
+Benefits:
+- Easy to compare numeric states
+- Easy to block backward moves
+- Easy to add new statuses later
+- Activity tracking becomes cleaner
+- Filtering by status becomes faster
+
+====================================================================
+END OF STATUS NUMBER SYSTEM
 ====================================================================
