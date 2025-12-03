@@ -1,193 +1,219 @@
 
 
+====================================================================
+TOPIC 1: HOW TO DETECT WHICH ITEM VALUE IS CHANGED BY ADMIN
+====================================================================
 
+1. OVERVIEW
+When the admin updates any entity (user, product, seller, order), you need to know:
+- what the old value was,
+- what the new value is,
+- which field changed,
+- who changed it,
+- when it changed.
+
+2. GENERAL APPROACH
+There are two common approaches:
+
+A. COMPARE OLD DATA WITH NEW DATA
+----------------------------------
+Step 1 → Fetch existing record from DB before updating.  
+Step 2 → Compare each field with the new POSTed value.  
+Step 3 → If old_value != new_value, record a log in admin_activity table.  
+Step 4 → Store:
+- table_name  
+- record_id  
+- field_name  
+- old_value  
+- new_value  
+- admin_id  
+- timestamp  
+
+Example comparison logic (pseudo):
+old = get_old_record(id)
+new = $_POST
+
+foreach fields:
+    if old[field] != new[field]:
+        insert into admin_activity
+
+B. USE JSON SNAPSHOT
+---------------------
+Store old data as JSON and new data as JSON.  
+Later compare using PHP array_diff_assoc.
+
+This is heavier but flexible.
+
+3. FIELDS TO LOG WHEN CHANGES OCCUR
+- admin_id (who changed)
+- module_name (user/product/order/seller)
+- record_id (which item changed)
+- field_name
+- old_value
+- new_value
+- changed_at timestamp
+
+4. BENEFIT
+You can fully track what admin changed, including:
+- previous price
+- updated order status
+- changed email/user info
+- modified coupon conditions
+- seller approval status
 
 ====================================================================
-ORDER STATUS NUMBER SYSTEM (ADMIN + USER SIDE)
+TOPIC 2: IF ADMIN REMOVES A COUPON FROM ORDER, ORDER MUST RESTORE ORIGINAL PRICE
 ====================================================================
 
 1. PURPOSE
------------
-The order currently uses text statuses like Pending, Processing, Shipped, Delivered, Cancelled.
-To make it more scalable you want to convert it to a number system.
-Each number represents a stage in the order lifecycle and you can prevent backward movement.
+If admin removes coupon benefits incorrectly, order may show discounted price forever, which is incorrect.
+
+The correct approach:
+- Recalculate total_amount based on original product prices (without coupon)
+- Remove coupon_id from order table
+- Update discount_amount = 0
+
+2. REQUIRED CHANGES IN ORDER TABLE
+Add the following fields:
+- subtotal_amount (sum of all order_items total)
+- discount_amount (discount applied by coupon)
+- final_amount (subtotal - discount + tax + shipping)
+- coupon_id (nullable or 0 if no coupon)
+
+3. HOW TO STORE ORIGINAL PRICE
+When creating the order:
+- store each product's price in order_items table as "price"
+This ensures if coupon is removed later, the system can use stored price.
+
+You MUST NOT calculate product price again from products table, because:
+- price may have changed later in the product table
+- order should show the price at time of purchase
+
+Recalculation formula:
+subtotal = SUM(order_items.total_price)
+final_amount = subtotal + tax + shipping
+
+4. SERVICE LOGIC FOR REMOVING COUPON
+Steps:
+1. Fetch order items  
+2. Recalculate subtotal  
+3. Remove coupon_id from order table  
+4. Set discount_amount = 0  
+5. Set final_amount = recalculated subtotal + tax  
+6. Log admin activity: "Coupon Removed"  
+
+5. REDUCE FUTURE ERRORS
+- Always store price at time of purchase  
+- Never recalc price from products table  
+- Always maintain fields: subtotal, discount_amount, final_amount  
 
 ====================================================================
-2. STATUS NUMBER MAPPING
+TOPIC 3: MERGED FULL DETAILS OF LAST 3 CHAT TOPICS
 ====================================================================
 
-Define a fixed array:
+1. DETECTING ADMIN CHANGES
+- Fetch old data before update  
+- Compare old with new  
+- Log differences in admin_activity table  
 
-$statusMap = [
-  1 => "Pending",
-  2 => "Processing",
-  3 => "Shipped",
-  4 => "Delivered",
-  5 => "Cancelled",
-  6 => "Refund Pending",
-  7 => "Refund Completed"
-];
+Example fields for admin_activity:
+id (PK)
+admin_id
+table_name
+record_id
+field_name
+old_value
+new_value
+action_type (update, delete, create)
+created_at timestamp
 
-Admin will see the text but database will store only the number.
+2. RESTORING ORIGINAL PRICE WHEN COUPON REMOVED
+- Use subtotal_amount field (sum of item prices)
+- Use discount_amount field for coupon discount
+- Use final_amount to store actual payable amount
+- Removing coupon sets:
+  coupon_id = NULL
+  discount_amount = 0
+  final_amount = subtotal + tax + shipping
 
-====================================================================
-3. DATABASE CHANGES FOR ORDERS TABLE
-====================================================================
+3. WHEN TO RECALCULATE ORDER AMOUNT
+A. When coupon is applied  
+B. When coupon is removed  
+C. When product quantities are changed  
+D. When tax or shipping changes  
 
-In orders table, change the existing "order_status" column:
+4. REQUIRED ORDER TABLE STRUCTURE
+order table fields must include:
+subtotal_amount
+discount_amount
+final_amount
+coupon_id (nullable)
+tax_amount
+shipping_amount
 
-Old:
-order_status ENUM('Pending','Processing','Shipped','Delivered','Cancelled')
+These allow recalculation anytime without needing product table.
 
-New:
-order_status INT NOT NULL DEFAULT 1
+5. ADMIN WORKFLOW FOR REMOVING COUPON
+- Admin clicks Remove Coupon  
+- AJAX request to OrderController  
+- Controller recalculates the total without discount  
+- Updates DB  
+- Logs activity in admin_activity  
+- Returns success message  
 
-Add new column for refund status is optional because you can store both refund and order status in the same column.
+6. HOW TO PREVENT CHANGING TO PREVIOUS ORDER STATUS
+Use numeric statuses:
+1 = Pending  
+2 = Processing  
+3 = Shipped  
+4 = Delivered  
+5 = Cancelled  
 
-If you want separate:
-refund_status INT DEFAULT 0
+Rule:
+new_status must be > old_status (except cancel operation)
 
-But recommended method is to merge into one status field because refund is a part of order lifecycle.
+Example PHP:
+if($new_status < $old_status && $new_status != 5) {
+   return error("Cannot move backward");
+}
 
-====================================================================
-4. ACTIVITY TABLE FOR STATUS HISTORY
-====================================================================
+7. STORE ORDER STATUS ACTIVITY
+Create order_status_activity table:
+id
+order_id
+status_code (number)
+changed_by (admin_id or user_id)
+remarks
+changed_at timestamp
 
-Create a table to track all status changes:
+You store:
+status history
+refund status if user cancels
 
-CREATE TABLE order_activity (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  order_id INT NOT NULL,
-  old_status INT,
-  new_status INT,
-  changed_by VARCHAR(50),
-  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+8. REFUND STATUS FIELD FOR USER CANCELLATION
+If user cancels the order:
+- order_status = CANCELLED
+- refund_status field should be added
 
-Whenever the admin changes status, insert a row into this table.
+refund_status values:
+0 = No Refund Required  
+1 = Refund Initiated  
+2 = Refund Completed  
 
-====================================================================
-5. PREVENT BACKWARD STATUS CHANGE
-====================================================================
+This works only for prepaid orders.
 
-The logic is simple:
+9. HOW ADMIN CAN KNOW WHICH FIELD WAS UPDATED
+Before updating:
+- fetch old record
+- compare with new submitted fields
+- log changed values as activity row
 
-1. Fetch current order_status from orders table.
-2. Fetch requested new status from form or AJAX.
-3. Compare numbers.
-
-If new_status < current_status:
-  do not allow update
-  return error message like "Cannot move backward in status flow"
-
-Example:
-Current = 3 (Shipped)
-New = 2 (Processing)
-Reject update.
-
-If new_status > current_status:
-  allow update.
-
-Special case:
-Cancelled (5) and Delivered (4) should be terminal statuses unless refund is involved.
-
-====================================================================
-6. REFUND STATUS HANDLING
-====================================================================
-
-When the user cancels an order, admin must set:
-
-new_status = 6 (Refund Pending)
-
-When refund completes:
-new_status = 7 (Refund Completed)
-
-Refund statuses are only available if the order previously reached at least 2 (Processing).
-If the order is still Pending, admin may cancel it directly without refund processing.
-
-====================================================================
-7. USING STATUS NUMBERS IN ADMIN PANEL
-====================================================================
-
-Instead of showing dropdown of text, admin will see:
-
-<select name="status">
-  <option value="1">Pending</option>
-  <option value="2">Processing</option>
-  <option value="3">Shipped</option>
-  <option value="4">Delivered</option>
-  <option value="5">Cancelled</option>
-  <option value="6">Refund Pending</option>
-  <option value="7">Refund Completed</option>
-</select>
-
-Admin selects number, controller checks rules, updates database.
+10. HOW ORDER REFLECTS ORIGINAL PRICE IF ADMIN REMOVES COUPON
+After detection:
+- Remove coupon relationship
+- Recalculate total using stored original item prices
+- Update order financial fields (discount, subtotal, final)
 
 ====================================================================
-8. MVC CONTROLLER LOGIC FOR STATUS UPDATE
-====================================================================
-
-Steps in controller:
-
-1. Receive new_status from AJAX.
-2. Get current_status from orders table.
-3. If new_status < current_status:
-     return error "Cannot revert to previous status"
-4. Insert entry into order_activity table (old_status, new_status, changed_by).
-5. Update orders table with new status number.
-6. Return success message.
-
-This enforces forward-only movement.
-
-====================================================================
-9. FRONTEND LOGIC FOR BLOCKING OPTIONS
-====================================================================
-
-Disable or hide earlier statuses.
-For example if current status is 3:
-
-Pending (1) disabled
-Processing (2) disabled
-Shipped (3) selected
-Delivered (4) enabled
-Cancelled (5) enabled
-Refund statuses only enabled based on business logic
-
-====================================================================
-10. HOW TO DISPLAY STATUS TO USER
-====================================================================
-
-Because database stores:
-order_status = 3
-
-User sees:
-$statusMap[$order['order_status']]   → Shipped
-
-In admin reports, activity page, invoice, email notifications, etc., always convert number back to text using the mapping array.
-
-====================================================================
-11. ORDER ACTIVITY EXAMPLES
-====================================================================
-
-Order status changed from 1 to 2 → Order moved from Pending to Processing
-Order status changed from 2 to 3 → Order moved from Processing to Shipped
-Order status changed from 3 to 4 → Order moved from Shipped to Delivered
-Order status changed from 4 to 6 → Refund Pending
-Order status changed from 6 to 7 → Refund Completed
-
-Each action is stored in order_activity.
-
-====================================================================
-12. WHY USE NUMBER SYSTEM
-====================================================================
-
-Benefits:
-- Easy to compare numeric states
-- Easy to block backward moves
-- Easy to add new statuses later
-- Activity tracking becomes cleaner
-- Filtering by status becomes faster
-
-====================================================================
-END OF STATUS NUMBER SYSTEM
+END OF TEXT
 ====================================================================
