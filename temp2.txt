@@ -1,219 +1,389 @@
 
 
-====================================================================
-TOPIC 1: HOW TO DETECT WHICH ITEM VALUE IS CHANGED BY ADMIN
-====================================================================
 
-1. OVERVIEW
-When the admin updates any entity (user, product, seller, order), you need to know:
-- what the old value was,
-- what the new value is,
-- which field changed,
-- who changed it,
-- when it changed.
 
-2. GENERAL APPROACH
-There are two common approaches:
+DELIVERY PARTNER + ORDER ACTIVITY (STATUS-AS-NUMBER) — FULL DESIGN NOTES
+========================================================================
 
-A. COMPARE OLD DATA WITH NEW DATA
-----------------------------------
-Step 1 → Fetch existing record from DB before updating.  
-Step 2 → Compare each field with the new POSTed value.  
-Step 3 → If old_value != new_value, record a log in admin_activity table.  
-Step 4 → Store:
-- table_name  
-- record_id  
-- field_name  
-- old_value  
-- new_value  
-- admin_id  
-- timestamp  
+Scope
+-----
+You want:
+1) Delivery partner functionality (delivery boy / courier partner).
+2) Delivery partner will be stored in the users table with flags/role.
+3) Order status history stored in an order_activity table.
+4) In order_activity you mainly store status as a number (status_code).
+5) Status must only move forward (cannot go back to previous).
+6) When order is cancelled by user, you also want refund-related statuses.
+7) Delivery partner status updates should also be stored in order_activity.
 
-Example comparison logic (pseudo):
-old = get_old_record(id)
-new = $_POST
+This document gives you:
+- Database design (users, orders, order_activity, delivery assignment).
+- Status code system (numbers only).
+- Logic for “forward only” status changes.
+- Where refund and delivery partner fit.
+- MVC outline (model, controller, view, AJAX) in concept.
 
-foreach fields:
-    if old[field] != new[field]:
-        insert into admin_activity
+--------------------------------------------------------------------
+1. USER TABLE (INCLUDING DELIVERY PARTNER)
+--------------------------------------------------------------------
 
-B. USE JSON SNAPSHOT
+Instead of separate table, use one users table with a role or flags.
+
+Table: users
+------------
+id             INT PK AI
+name           VARCHAR(100)
+email          VARCHAR(100) UNIQUE
+password_hash  VARCHAR(255)
+phone          VARCHAR(20)
+role           ENUM('customer','admin','seller','delivery')  -- or INT code
+is_active      TINYINT(1) DEFAULT 1
+
+Optional fields useful for delivery partner:
+delivery_vehicle_type   VARCHAR(50)   -- bike, car, van
+delivery_service_area   VARCHAR(100)  -- city or pincode range
+delivery_code           VARCHAR(50)   -- internal code / employee id
+
+Notes:
+- Delivery partner is just a user with role = 'delivery'.
+- Admin approves them by changing role from 'pending_delivery' to 'delivery' or by setting is_active = 1.
+
+--------------------------------------------------------------------
+2. ORDERS TABLE (MAIN ORDER RECORD WITH NUMERIC STATUS)
+--------------------------------------------------------------------
+
+You wanted to change order status to be stored as a number.
+
+Table: orders
+-------------
+id                 BIGINT PK AI
+user_id            INT NULL              -- customer
+delivery_partner_id INT NULL             -- assigned delivery partner (user.id)
+status_code        INT NOT NULL          -- numeric code, see mapping below
+payment_status_code INT NOT NULL         -- numeric payment status
+total_amount       DECIMAL(10,2)
+subtotal_amount    DECIMAL(10,2)         -- before tax & coupon
+tax_amount         DECIMAL(10,2)
+coupon_id          INT NULL              -- if coupon used
+coupon_discount    DECIMAL(10,2)
+grand_total        DECIMAL(10,2)         -- final amount after discount + tax
+created_at         DATETIME
+updated_at         DATETIME
+
+Notes:
+- status_code is always equal to the highest status_code in order_activity for that order.
+- payment_status_code can be numeric too (e.g. 1=pending, 2=paid, 3=failed, 4=refunded).
+- delivery_partner_id shows who is currently responsible; this user will update delivery-related statuses.
+
+--------------------------------------------------------------------
+3. ORDER_ACTIVITY TABLE (STATUS-AS-NUMBER ONLY)
+--------------------------------------------------------------------
+
+You want an “activity” table where you mainly store status as a number.
+Minimum fields:
+
+Table: order_activity
 ---------------------
-Store old data as JSON and new data as JSON.  
-Later compare using PHP array_diff_assoc.
+id           BIGINT PK AI
+order_id     BIGINT NOT NULL
+status_code  INT NOT NULL
+actor_type   TINYINT NULL       -- 1=system, 2=customer, 3=admin, 4=delivery, 5=seller  (optional but recommended)
+actor_id     INT NULL           -- user id who changed status (optional but recommended)
+note         VARCHAR(255) NULL  -- optional short note
+created_at   DATETIME NOT NULL
 
-This is heavier but flexible.
+Indexes:
+- INDEX(order_id, created_at)
+- INDEX(order_id, status_code)
 
-3. FIELDS TO LOG WHEN CHANGES OCCUR
-- admin_id (who changed)
-- module_name (user/product/order/seller)
-- record_id (which item changed)
-- field_name
-- old_value
-- new_value
-- changed_at timestamp
+If you truly want to store “only status”:
+- Mandatory: id, order_id, status_code, created_at.
+- Recommended (for later debug): actor_type, actor_id, note.
 
-4. BENEFIT
-You can fully track what admin changed, including:
-- previous price
-- updated order status
-- changed email/user info
-- modified coupon conditions
-- seller approval status
+Every change in order status inserts a new row into this table.
 
-====================================================================
-TOPIC 2: IF ADMIN REMOVES A COUPON FROM ORDER, ORDER MUST RESTORE ORIGINAL PRICE
-====================================================================
+--------------------------------------------------------------------
+4. STATUS CODE MAPPING (NUMBERS ONLY)
+--------------------------------------------------------------------
 
-1. PURPOSE
-If admin removes coupon benefits incorrectly, order may show discounted price forever, which is incorrect.
+You store numeric status_code in DB and have a PHP array mapping:
 
-The correct approach:
-- Recalculate total_amount based on original product prices (without coupon)
-- Remove coupon_id from order table
-- Update discount_amount = 0
+Example (PHP):
+--------------
+$statusMap = [
+    10 => 'Order Placed',
+    20 => 'Payment Pending',
+    30 => 'Payment Confirmed',
+    40 => 'Packed',
+    50 => 'Handed to Courier',
+    60 => 'In Transit (Warehouse → City)',
+    70 => 'Arrived at Destination City',
+    80 => 'Out for Delivery',
+    90 => 'Delivered',
 
-2. REQUIRED CHANGES IN ORDER TABLE
-Add the following fields:
-- subtotal_amount (sum of all order_items total)
-- discount_amount (discount applied by coupon)
-- final_amount (subtotal - discount + tax + shipping)
-- coupon_id (nullable or 0 if no coupon)
+    100 => 'Cancelled by User',
+    110 => 'Cancelled by Admin',
 
-3. HOW TO STORE ORIGINAL PRICE
-When creating the order:
-- store each product's price in order_items table as "price"
-This ensures if coupon is removed later, the system can use stored price.
+    120 => 'Return Requested',
+    130 => 'Return Approved',
+    140 => 'Returned to Warehouse',
 
-You MUST NOT calculate product price again from products table, because:
-- price may have changed later in the product table
-- order should show the price at time of purchase
+    150 => 'Refund Initiated',
+    160 => 'Refund Completed',
+];
 
-Recalculation formula:
-subtotal = SUM(order_items.total_price)
-final_amount = subtotal + tax + shipping
+You can decide ranges:
+- 10–90: normal forward path from placed to delivered.
+- 100–110: cancellation.
+- 120–140: returns.
+- 150–160: refunds.
 
-4. SERVICE LOGIC FOR REMOVING COUPON
-Steps:
-1. Fetch order items  
-2. Recalculate subtotal  
-3. Remove coupon_id from order table  
-4. Set discount_amount = 0  
-5. Set final_amount = recalculated subtotal + tax  
-6. Log admin activity: "Coupon Removed"  
+Delivery partner will mainly work in codes: 50, 60, 70, 80, 90.
 
-5. REDUCE FUTURE ERRORS
-- Always store price at time of purchase  
-- Never recalc price from products table  
-- Always maintain fields: subtotal, discount_amount, final_amount  
+--------------------------------------------------------------------
+5. FORWARD-ONLY STATUS LOGIC
+--------------------------------------------------------------------
 
-====================================================================
-TOPIC 3: MERGED FULL DETAILS OF LAST 3 CHAT TOPICS
-====================================================================
+Requirement:
+- Once status reaches a certain number, cannot go back to lower status.
+- Example: if current max status for order is 60 (In Transit), you cannot set it back to 40 (Packed).
 
-1. DETECTING ADMIN CHANGES
-- Fetch old data before update  
-- Compare old with new  
-- Log differences in admin_activity table  
+Implementation idea (in controller):
 
-Example fields for admin_activity:
-id (PK)
-admin_id
-table_name
-record_id
-field_name
-old_value
-new_value
-action_type (update, delete, create)
-created_at timestamp
+1) Get current highest status_code for that order:
+   SELECT MAX(status_code) AS current_status
+   FROM order_activity
+   WHERE order_id = :order_id;
 
-2. RESTORING ORIGINAL PRICE WHEN COUPON REMOVED
-- Use subtotal_amount field (sum of item prices)
-- Use discount_amount field for coupon discount
-- Use final_amount to store actual payable amount
-- Removing coupon sets:
-  coupon_id = NULL
-  discount_amount = 0
-  final_amount = subtotal + tax + shipping
+2) Let new_status be the requested new code.
 
-3. WHEN TO RECALCULATE ORDER AMOUNT
-A. When coupon is applied  
-B. When coupon is removed  
-C. When product quantities are changed  
-D. When tax or shipping changes  
+3) Rule:
+   - If new_status <= current_status → reject.
+   - Else → insert into order_activity and update orders.status_code.
 
-4. REQUIRED ORDER TABLE STRUCTURE
-order table fields must include:
-subtotal_amount
-discount_amount
-final_amount
-coupon_id (nullable)
-tax_amount
-shipping_amount
+Pseudo-code (PHP):
+------------------
+$current = getMaxStatusCode($order_id); // from order_activity
 
-These allow recalculation anytime without needing product table.
-
-5. ADMIN WORKFLOW FOR REMOVING COUPON
-- Admin clicks Remove Coupon  
-- AJAX request to OrderController  
-- Controller recalculates the total without discount  
-- Updates DB  
-- Logs activity in admin_activity  
-- Returns success message  
-
-6. HOW TO PREVENT CHANGING TO PREVIOUS ORDER STATUS
-Use numeric statuses:
-1 = Pending  
-2 = Processing  
-3 = Shipped  
-4 = Delivered  
-5 = Cancelled  
-
-Rule:
-new_status must be > old_status (except cancel operation)
-
-Example PHP:
-if($new_status < $old_status && $new_status != 5) {
-   return error("Cannot move backward");
+if ($new_status <= $current) {
+    // do not allow backward
+    return error("Cannot move status backwards.");
 }
 
-7. STORE ORDER STATUS ACTIVITY
-Create order_status_activity table:
-id
-order_id
-status_code (number)
-changed_by (admin_id or user_id)
-remarks
-changed_at timestamp
+// insert new activity row
+INSERT INTO order_activity (order_id, status_code, actor_type, actor_id, created_at)
+VALUES (:order_id, :new_status, :actor_type, :actor_id, NOW());
 
-You store:
-status history
-refund status if user cancels
+// update orders table
+UPDATE orders SET status_code = :new_status, updated_at = NOW()
+WHERE id = :order_id;
 
-8. REFUND STATUS FIELD FOR USER CANCELLATION
-If user cancels the order:
-- order_status = CANCELLED
-- refund_status field should be added
+This logic is used by:
+- Admin status changes.
+- Delivery partner status changes.
+- System automatic transitions.
 
-refund_status values:
-0 = No Refund Required  
-1 = Refund Initiated  
-2 = Refund Completed  
+--------------------------------------------------------------------
+6. DELIVERY PARTNER FLOW
+--------------------------------------------------------------------
 
-This works only for prepaid orders.
+Actors:
+- Admin: assigns delivery partner to order.
+- Delivery partner (role='delivery'): logs in and updates status for their assigned orders.
 
-9. HOW ADMIN CAN KNOW WHICH FIELD WAS UPDATED
-Before updating:
-- fetch old record
-- compare with new submitted fields
-- log changed values as activity row
+6.1 Assignment
+--------------
+Options:
+A) Column in orders: delivery_partner_id
+   Admin sets this when order is ready to ship.
 
-10. HOW ORDER REFLECTS ORIGINAL PRICE IF ADMIN REMOVES COUPON
-After detection:
-- Remove coupon relationship
-- Recalculate total using stored original item prices
-- Update order financial fields (discount, subtotal, final)
+B) Separate table:
+   order_delivery_assignments(order_id, partner_id, assigned_at).
+   For simplicity, use orders.delivery_partner_id.
 
-====================================================================
-END OF TEXT
-====================================================================
+Admin UI:
+- On admin order details page: dropdown of delivery partners.
+- When admin selects one and saves, UPDATE orders SET delivery_partner_id = X.
+
+6.2 Delivery partner allowed status transitions
+-----------------------------------------------
+Typically, delivery partner handles later part of journey:
+
+Example allowed transitions for delivery partner:
+- 50 → Handed to Courier
+- 60 → In Transit
+- 70 → Arrived at Destination City
+- 80 → Out for Delivery
+- 90 → Delivered
+
+Backend must:
+- Verify user’s role is delivery.
+- Verify that new_status is one of allowed list.
+- Use forward-only logic.
+
+--------------------------------------------------------------------
+7. REFUND STATUS WHEN ORDER CANCELLED BY USER
+--------------------------------------------------------------------
+
+Requirement:
+- If order is cancelled by user you want also a refund flow status.
+
+Typical flow (numeric statuses):
+- 10: Order Placed
+- 30: Payment Confirmed (Paid)
+- 100: Cancelled by User
+- 150: Refund Initiated
+- 160: Refund Completed
+
+How it works:
+- When user clicks “Cancel Order”:
+  - New order_activity row: status_code = 100 (Cancelled by User).
+  - orders.status_code updated to 100.
+  - System or admin then initiates refund:
+    - New order_activity: 150 (Refund Initiated).
+    - Once gateway confirms refund:
+      - New order_activity: 160 (Refund Completed).
+      - payment_status_code in orders may be set to 4 (Refunded).
+
+Note: Forward-only logic still holds as the numbers increase.
+
+--------------------------------------------------------------------
+8. DELIVERY PARTNER ACTIVITY IN ORDER_ACTIVITY
+--------------------------------------------------------------------
+
+You want to store delivery partner activity in order_activity (status only).
+
+Example:
+- When partner clicks “Mark as Out for Delivery” on their screen:
+
+1) Controller:
+   - Determine new_status = 80.
+   - Get max status for that order, check forward-only.
+   - Insert new row:
+
+   INSERT INTO order_activity (order_id, status_code, actor_type, actor_id, created_at)
+   VALUES (:order_id, 80, 4, :delivery_user_id, NOW());
+
+   UPDATE orders SET status_code = 80, updated_at = NOW()
+   WHERE id = :order_id;
+
+If you decide to strictly keep only status:
+- actor_type and actor_id can be NULL.
+- But leaving them present but optional gives you debug power later.
+
+--------------------------------------------------------------------
+9. SAMPLE DELIVERY STATUS LIST (ADDED BY DELIVERY PARTNER)
+--------------------------------------------------------------------
+
+You asked: “what are the status that i can add that added by the delivery partner?”
+
+Suggested codes:
+
+50 = Handed to Courier / Picked from Warehouse  
+60 = In Transit (Warehouse to City Hub)  
+70 = Arrived at Destination City / Local Hub  
+80 = Out for Delivery  
+90 = Delivered to Customer  
+
+Optional additional:
+55 = Shipment Delayed  
+95 = Delivery Attempt Failed (Customer not available)
+
+All of these are recorded as rows in order_activity with status_code.
+
+--------------------------------------------------------------------
+10. MVC OUTLINE FOR DELIVERY PARTNER STATUS UPDATE (CONCEPT)
+--------------------------------------------------------------------
+
+Route example:
+- GET  index.php?controller=Delivery&action=listOrders
+- POST index.php?controller=Delivery&action=updateStatus
+
+Model: OrderActivityModel
+-------------------------
+Methods:
+- getMaxStatusCode($order_id)
+- addActivity($order_id, $status_code, $actor_type, $actor_id)
+- getTimeline($order_id)
+
+Controller: DeliveryController
+------------------------------
+updateStatus():
+1) Read POST: order_id, new_status.
+2) Validate:
+   - user is logged in and role = 'delivery'.
+   - user is assigned to this order (orders.delivery_partner_id == logged in user id).
+   - new_status is in allowed set [50,60,70,80,90].
+3) Use forward-only logic with MAX(status_code).
+4) Insert into order_activity + update orders.status_code.
+5) Return JSON { success: true, new_status_label: 'Out for Delivery' }.
+
+Front end (delivery partner panel, using AJAX/jQuery):
+------------------------------------------------------
+On button click (e.g., "Mark as Delivered"):
+
+$.ajax({
+  url: 'index.php?controller=Delivery&action=updateStatus',
+  type: 'POST',
+  data: { order_id: orderId, status_code: 90 },
+  success: function(res) {
+     // show toast: "Status updated to Delivered"
+  }
+});
+
+--------------------------------------------------------------------
+11. ORDER ACTIVITY VIEW (ADMIN SIDE)
+--------------------------------------------------------------------
+
+Admin order details page can show a timeline:
+
+1) Fetch all activity:
+   SELECT status_code, created_at
+   FROM order_activity
+   WHERE order_id = :order_id
+   ORDER BY created_at ASC, id ASC;
+
+2) In PHP:
+   - Map status_code → label using $statusMap.
+   - Render timeline:
+
+   [2025-01-01 10:00] Order Placed  
+   [2025-01-01 10:01] Payment Confirmed  
+   [2025-01-01 12:00] Packed  
+   [2025-01-01 14:00] Handed to Courier  
+   [2025-01-02 09:00] Out for Delivery  
+   [2025-01-02 13:00] Delivered  
+
+You can hide created_at repetition if same timestamp for multiple rows by checking previous row timestamp in PHP.
+
+--------------------------------------------------------------------
+12. CHANGES NEEDED COMPARED TO OLD DESIGN
+--------------------------------------------------------------------
+
+If you previously had:
+- orders.order_status (string) like 'pending', 'shipped', etc.
+- No order_activity.
+
+New design:
+- Add orders.status_code INT.
+- Migrate or map existing status strings to numbers once.
+- Create order_activity table and backfill one row for each existing order with its current status number.
+- Update all future code to:
+  - NOT directly set orders.status string.
+  - ALWAYS insert into order_activity and then update orders.status_code based on that.
+
+--------------------------------------------------------------------
+13. SUMMARY
+--------------------------------------------------------------------
+
+- Delivery partner is stored in users table with role='delivery'.
+- Orders have numeric status_code and optional payment_status_code.
+- order_activity logs history with status_code (integer) and created_at.
+- Status codes follow a numeric map and only increase over time.
+- Forward-only rule uses MAX(status_code) check before inserting new activity.
+- Delivery partner updates statuses like 50, 60, 70, 80, 90 (warehouse to delivered).
+- Cancellations and refunds use higher numeric codes (100+, 150+).
+- All activity, including delivery partner actions, is stored in order_activity.
+- Admin and user views use order_activity to display order timeline.
+
+END OF DOCUMENT
