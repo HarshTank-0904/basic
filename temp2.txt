@@ -1,104 +1,106 @@
+=======================================================
+BASIC FEATURES YOU CAN ADD NEXT (BEGINNER FRIENDLY)
+=======================================================
 
+1. Product Wishlist
+-------------------
+Allow users to mark products as "Favorite" and view them later.
 
+2. Product Reviews & Ratings
+-----------------------------
+Users can add 1–5 star rating and write a small review.
+Admin can approve or delete reviews.
 
+3. Simple Inventory Alerts
+---------------------------
+If product quantity < 5, show a “Low Stock” warning to admin.
 
-DELIVERY PARTNER + ORDER ACTIVITY (STATUS-AS-NUMBER) — FULL DESIGN NOTES
-========================================================================
+4. Out-of-Stock Badge
+----------------------
+If product quantity = 0, show a badge on frontend “Out of Stock”.
+Disable Buy Now / Add to Cart buttons.
 
-Scope
------
-You want:
-1) Delivery partner functionality (delivery boy / courier partner).
-2) Delivery partner will be stored in the users table with flags/role.
-3) Order status history stored in an order_activity table.
-4) In order_activity you mainly store status as a number (status_code).
-5) Status must only move forward (cannot go back to previous).
-6) When order is cancelled by user, you also want refund-related statuses.
-7) Delivery partner status updates should also be stored in order_activity.
+5. Category Filter on Front Side
+---------------------------------
+User can filter products by category or subcategory.
 
-This document gives you:
-- Database design (users, orders, order_activity, delivery assignment).
-- Status code system (numbers only).
-- Logic for “forward only” status changes.
-- Where refund and delivery partner fit.
-- MVC outline (model, controller, view, AJAX) in concept.
+6. Price Filter (Low–High / High–Low)
+--------------------------------------
+Sort products by price.
+(Only frontend sorting, not advanced search.)
 
---------------------------------------------------------------------
-1. USER TABLE (INCLUDING DELIVERY PARTNER)
---------------------------------------------------------------------
+7. Basic Search Bar
+--------------------
+User can search products by product name.
 
-Instead of separate table, use one users table with a role or flags.
+8. Recently Viewed Products
+----------------------------
+Show last 4–5 products user visited (stored in session).
 
-Table: users
-------------
-id             INT PK AI
-name           VARCHAR(100)
-email          VARCHAR(100) UNIQUE
-password_hash  VARCHAR(255)
-phone          VARCHAR(20)
-role           ENUM('customer','admin','seller','delivery')  -- or INT code
-is_active      TINYINT(1) DEFAULT 1
+9. Simple Dashboard for User
+-----------------------------
+User can see:
+- Total orders placed  
+- Last 5 orders  
+- Current active orders  
 
-Optional fields useful for delivery partner:
-delivery_vehicle_type   VARCHAR(50)   -- bike, car, van
-delivery_service_area   VARCHAR(100)  -- city or pincode range
-delivery_code           VARCHAR(50)   -- internal code / employee id
+10. Product Image Gallery
+--------------------------
+Allow multiple images per product (2–3 images).
 
-Notes:
-- Delivery partner is just a user with role = 'delivery'.
-- Admin approves them by changing role from 'pending_delivery' to 'delivery' or by setting is_active = 1.
+11. Admin Profile Settings
+---------------------------
+Admin can change:
+- Name  
+- Username  
+- Password  
 
---------------------------------------------------------------------
-2. ORDERS TABLE (MAIN ORDER RECORD WITH NUMERIC STATUS)
---------------------------------------------------------------------
+12. Coupon Listing Page for Users
+----------------------------------
+User can see available coupons in their account section.
 
-You wanted to change order status to be stored as a number.
+13. Order Cancellation (User Side)
+----------------------------------
+User can cancel order only when order status is still “Pending”.
 
-Table: orders
--------------
-id                 BIGINT PK AI
-user_id            INT NULL              -- customer
-delivery_partner_id INT NULL             -- assigned delivery partner (user.id)
-status_code        INT NOT NULL          -- numeric code, see mapping below
-payment_status_code INT NOT NULL         -- numeric payment status
-total_amount       DECIMAL(10,2)
-subtotal_amount    DECIMAL(10,2)         -- before tax & coupon
-tax_amount         DECIMAL(10,2)
-coupon_id          INT NULL              -- if coupon used
-coupon_discount    DECIMAL(10,2)
-grand_total        DECIMAL(10,2)         -- final amount after discount + tax
-created_at         DATETIME
-updated_at         DATETIME
+14. Auto-Generated Order Invoice Number
+---------------------------------------
+Create order invoice like:
+INV-2025-00023
 
-Notes:
-- status_code is always equal to the highest status_code in order_activity for that order.
-- payment_status_code can be numeric too (e.g. 1=pending, 2=paid, 3=failed, 4=refunded).
-- delivery_partner_id shows who is currently responsible; this user will update delivery-related statuses.
+15. Basic Email Notifications
+------------------------------
+Send simple "Order Placed" or "Order Cancelled" email (plain PHP mail).
 
---------------------------------------------------------------------
-3. ORDER_ACTIVITY TABLE (STATUS-AS-NUMBER ONLY)
---------------------------------------------------------------------
+16. Popular Products Section
+----------------------------
+Show 4–5 most sold products on homepage.
 
-You want an “activity” table where you mainly store status as a number.
-Minimum fields:
+17. Contact Us Form
+--------------------
+User sends message → stored in database → admin can view.
 
-Table: order_activity
----------------------
-id           BIGINT PK AI
-order_id     BIGINT NOT NULL
-status_code  INT NOT NULL
-actor_type   TINYINT NULL       -- 1=system, 2=customer, 3=admin, 4=delivery, 5=seller  (optional but recommended)
-actor_id     INT NULL           -- user id who changed status (optional but recommended)
-note         VARCHAR(255) NULL  -- optional short note
-created_at   DATETIME NOT NULL
+18. Simple Banner Slider
+-------------------------
+Put 2–3 banners at top of homepage (image slider).
 
-Indexes:
-- INDEX(order_id, created_at)
-- INDEX(order_id, status_code)
+19. Basic Reports (Simple)
+----------------------------
+- Total orders  
+- Total revenue  
+- Today’s orders  
+(Not advanced charts.)
 
-If you truly want to store “only status”:
-- Mandatory: id, order_id, status_code, created_at.
-- Recommended (for later debug): actor_type, actor_id, note.
+20. Discount Labels
+--------------------
+Show label on products:
+- “10% OFF”
+- “SAVE ₹200”
+when coupon or product discount applies.
+
+=======================================================
+END OF BASIC FEATURES LIST
+=======================================================- Recommended (for later debug): actor_type, actor_id, note.
 
 Every change in order status inserts a new row into this table.
 
