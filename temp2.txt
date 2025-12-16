@@ -1,660 +1,331 @@
 
 
-=============================================================
-LIST OF BASIC IMPROVEMENTS YOU SHOULD ADD TO YOUR PROJECT
-=============================================================
+PLUGIN NAME: my-book-post
+PURPOSE: Create a Custom Post Type (Books) in WordPress using MVC architecture with autoloading.
+FORMAT: Single text file documentation (detailed)
+STANDARD: WordPress Coding Standards + OOP + MVC
+====================================================================
+
+
+1. OVERVIEW
+--------------------------------------------------------------------
+This plugin creates a Custom Post Type called "Book" in the WordPress
+Admin Panel and displays the added books on the frontend using a
+shortcode.
+
+Key rules followed:
+- MVC (Model–View–Controller) architecture
+- Main plugin file contains NO business logic
+- Autoloading for classes
+- Namespaces used
+- Clean, scalable structure
+- Beginner-friendly and extendable
+
+
+2. PLUGIN DIRECTORY STRUCTURE
+--------------------------------------------------------------------
+Location:
+wp-content/plugins/my-book-post/
+
+Folder & file layout:
+
+my-book-post/
+│
+├── my-book-post.php        -> Main plugin file (ONLY plugin info)
+├── autoload.php            -> Handles constants + class autoloading
+│
+├── app/
+│   ├── Controllers/
+│   │   └── BookController.php
+│   │
+│   ├── Models/
+│   │   └── BookModel.php
+│   │
+│   └── Views/
+│       └── book-list.php
+│
+├── routes/
+│   └── web.php
+│
+└── assets/
+    └── css/
+
+
+3. MAIN PLUGIN FILE (NO LOGIC)
+--------------------------------------------------------------------
+File: my-book-post.php
+
+Purpose:
+- Define plugin metadata
+- Load autoload.php only
+- NO actions, filters, functions, or classes
+
+Code:
+
+<?php
+/**
+ * Plugin Name: My Book Post
+ * Plugin URI: https://example.com
+ * Description: Custom Book Post Type plugin using MVC architecture
+ * Version: 1.0.0
+ * Author: Your Name
+ * Author URI: https://example.com
+ * Text Domain: my-book-post
+ * Domain Path: /languages
+ */
+
+defined('ABSPATH') || exit;
+
+require_once plugin_dir_path(__FILE__) . 'autoload.php';
+
+
+Why this is correct:
+- WordPress best practice
+- Keeps plugin bootstrapping clean
+- All logic is handled elsewhere
+
+
+4. AUTOLOAD FILE (CORE OF PLUGIN)
+--------------------------------------------------------------------
+File: autoload.php
+
+Purpose:
+- Define reusable constants
+- Automatically load classes
+- Initialize routes
+
+Code:
+
+<?php
+
+defined('ABSPATH') || exit;
+
+/* Plugin Constants */
+define('MBP_PATH', plugin_dir_path(__FILE__));
+define('MBP_URL', plugin_dir_url(__FILE__));
 
-Below is a clean and beginner-friendly list of code improvements you should add to your project.  
-These improvements are not advanced — they are practical, safe, and help you write cleaner, more maintainable code.
+/* Autoload Classes */
+spl_autoload_register(function ($class) {
 
-=============================================================
-1. USE PREPARED STATEMENTS (MYSQLi)
-=============================================================
-Right now, many queries in beginner code use direct SQL strings.  
-You should change all DB queries to prepared statements to avoid SQL injection.
+    $namespace = 'MBP\\';
 
-Example:
-$stmt = $conn->prepare("SELECT * FROM users WHERE id=?");
-$stmt->bind_param("i",$id);
-
-Benefits:
-- More secure
-- Cleaner query structure
-- Avoids SQL injection automatically
-
-=============================================================
-2. CREATE COMMON CONFIG FILE FOR CONSTANTS
-=============================================================
-Make one file:
-
-/config/constants.php
-
-Inside it store:
-- Order status array  
-- Seller types array  
-- Coupon types array  
-- User role flags  
-- Delivery partner flags  
-- Any reusable array or value  
-
-Then include this file everywhere instead of repeating same arrays.
-
-=============================================================
-3. MOVE REPEATED FUNCTIONS INTO A COMMON HELPER FILE
-=============================================================
-Create:
-
-/helpers/common.php
-
-Add reusable functions:
-- sanitize()  
-- validateEmail()  
-- formatPrice()  
-- getStatusLabel()  
-- getOrderActivityStatusName()  
-- getDeliveryStatusText()  
-- responseJSON()  
-
-Then call these across controllers.
-
-=============================================================
-4. CREATE A BASE CONTROLLER FILE
-=============================================================
-Make a file:
-
-/app/core/BaseController.php
-
-Inside keep:
-- loadModel()
-- renderView()
-- redirect()
-- setFlashMessage()
-
-All controllers will extend BaseController.
-
-This makes your MVC more professional and reduces repeated code.
-
-=============================================================
-5. USE FLASH MESSAGE SYSTEM
-=============================================================
-Instead of echoing success/error, use sessions:
-
-$_SESSION['success'];
-$_SESSION['error'];
-
-Then show this in header or layout:
-if(isset($_SESSION['success'])) { show message and unset }
-
-This keeps UI cleaner and avoids echo inside controller.
-
-=============================================================
-6. USE A COMMON HEADER + FOOTER + SIDEBAR
-=============================================================
-Make layout files:
-
-/includes/header.php
-/includes/footer.php
-/includes/sidebar.php
-
-Include them in all pages so design stays consistent.
-
-=============================================================
-7. CREATE A ROUTER FILE FOR CLEANER URLs
-=============================================================
-Use index.php as router:
-
-?controller=order&action=view
-
-But create a small router class to avoid long if/else conditions.
-
-=============================================================
-8. USE ONE COMMON ORDER STATUS ARRAY
-=============================================================
-Store it in constants.php:
-
-$orderStatus = [
-  1 => "Pending",
-  2 => "Processing",
-  3 => "Shipped",
-  4 => "Delivered",
-  5 => "Cancelled"
-];
-
-Use the same array in:
-- Admin
-- Seller
-- Delivery partner
-- User views
-
-=============================================================
-9. MAKE COMMON ORDER LIST TABLE FILE
-=============================================================
-Since you use order list table in 3–4 places:
-
-Create:
-
-/components/order_table.php
-
-Inside this file, keep only the table structure.  
-Columns like "Actions" can be passed from each page.
-
-=============================================================
-10. CREATE A LOGGING / ACTIVITY SYSTEM FILE
-=============================================================
-Make one separate file/class:
-
-/app/models/Activity.php
-
-Add functions like:
-addActivity($admin_id, $module, $action, $oldValue, $newValue)
-
-Then use it everywhere:
-- When admin updates order
-- When admin updates product
-- When seller is approved
-- When coupon updated
-
-=============================================================
-11. USE A SINGLE UNIQUE FUNCTION TO GET USER ROLE
-=============================================================
-getUserRole($user_id);
-
-This avoids repeating code to check:
-- admin
-- user
-- seller
-- delivery partner
-
-=============================================================
-12. USE SERVER-SIDE VALIDATION
-=============================================================
-Every form:
-- seller registration
-- product update
-- order update
-- coupon create
-
-must have backend validation:
-- empty field check
-- email format
-- numeric check
-- string length check
-
-=============================================================
-13. HANDLE ERRORS IN A COMMON ERROR PAGE
-=============================================================
-Instead of echoing “something went wrong”, create:
-
-error.php
-
-Pass the message:
-error.php?msg=Invalid Access
-
-=============================================================
-14. PAGINATION FOR LARGE LISTS
-=============================================================
-Add pagination to:
-- products list
-- users list
-- sellers list
-- orders list
-- coupons list
-
-Easy to implement using LIMIT offset.
-
-=============================================================
-15. CLEAN DATABASE STRUCTURE
-=============================================================
-Add indexes where needed:
-- order_id in order_items
-- user_id in orders
-- seller_id in products
-
-Add foreign keys if comfortable.
-
-=============================================================
-16. USE A COMMON FUNCTION FOR JSON RESPONSE
-=============================================================
-Every AJAX should return using one function:
-
-function jsonResponse($status, $message, $data=[])
-
-Cleaner and consistent.
-
-=============================================================
-17. ADD BASIC ERROR LOGGING
-=============================================================
-log errors in:
-
-/logs/app.log
-
-Every critical operation:
-- order update
-- payment process
-- coupon usage
-
-should write timestamp + message.
-
-=============================================================
-18. ORGANIZE JS FILES PROPERLY
-=============================================================
-Create folder:
-
-/assets/js/
-
-Inside:
-- product.js
-- order.js
-- coupon.js
-- seller.js
-- cart.js
-
-Keeps code readable.
-
-=============================================================
-19. USE TRY–CATCH FOR DATABASE OPERATIONS
-=============================================================
-Wrap operations in try-catch if using exceptions.  
-Helps avoid fatal errors.
-
-=============================================================
-20. ADD BASIC SECURITY CHECKS
-=============================================================
-- csrf token for forms
-- session check before admin access
-- restrict seller/user access to unauthorized pages
-
-=============================================================
-END OF BASIC PROJECT IMPROVEMENT LIST
-=============================================================
-
-
-========================================================
-FORM VALIDATION PLAN (JS + PHP, ALL INPUT TYPES)
-========================================================
-Goal:
-- Validate everything in JavaScript first (better UX).
-- Always validate again in PHP (security, final check).
-- Cover: text, email, number, select, checkbox, radio, etc.
-- Keep it reusable across multiple forms (common JS + common PHP).
-
-========================================================
-1. HTML FORM EXAMPLE (TYPICAL FIELDS)
-========================================================
-Example form (you can adapt names to your project):
-
-<form id="orderForm" method="post" action="index.php?controller=order&action=store">
-    <!-- Text -->
-    <label>Full Name</label>
-    <input type="text" name="full_name" id="full_name">
-    <span class="error" id="err_full_name"></span>
-
-    <!-- Email -->
-    <label>Email</label>
-    <input type="email" name="email" id="email">
-    <span class="error" id="err_email"></span>
-
-    <!-- Phone (tel) -->
-    <label>Phone</label>
-    <input type="tel" name="phone" id="phone">
-    <span class="error" id="err_phone"></span>
-
-    <!-- Select -->
-    <label>Country</label>
-    <select name="country" id="country">
-        <option value="">Select country</option>
-        <option value="IN">India</option>
-        <option value="US">USA</option>
-    </select>
-    <span class="error" id="err_country"></span>
-
-    <!-- Radio -->
-    <label>Payment Method</label>
-    <input type="radio" name="payment_method" value="cod" id="pm_cod"> COD
-    <input type="radio" name="payment_method" value="online" id="pm_online"> Online
-    <span class="error" id="err_payment"></span>
-
-    <!-- Checkbox -->
-    <label>
-        <input type="checkbox" name="terms" id="terms">
-        I agree to terms
-    </label>
-    <span class="error" id="err_terms"></span>
-
-    <!-- Number (quantity) -->
-    <label>Quantity</label>
-    <input type="number" name="qty" id="qty" min="1">
-    <span class="error" id="err_qty"></span>
-
-    <button type="submit">Submit</button>
-</form>
-
-<div id="form_global_error"></div>
-
-========================================================
-2. JAVASCRIPT VALIDATION (FRONTEND)
-========================================================
-Create a common JS file (for example: assets/js/validation.js) and include it in all pages where needed.
-
-Basic approach:
-- On submit: prevent default.
-- Clear old errors.
-- Validate each field.
-- If any error: show messages and do not submit.
-- If everything ok: submit form with JS (or allow normal submit).
-
-Example (plain JS):
-
-document.addEventListener('DOMContentLoaded', function() {
-    var form = document.getElementById('orderForm');
-
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        clearErrors();
-
-        var hasError = false;
-
-        var full_name = document.getElementById('full_name').value.trim();
-        var email = document.getElementById('email').value.trim();
-        var phone = document.getElementById('phone').value.trim();
-        var country = document.getElementById('country').value;
-        var qty = document.getElementById('qty').value;
-        var terms = document.getElementById('terms').checked;
-
-        var paymentRadios = document.getElementsByName('payment_method');
-        var paymentSelected = '';
-        for (var i = 0; i < paymentRadios.length; i++) {
-            if (paymentRadios[i].checked) {
-                paymentSelected = paymentRadios[i].value;
-                break;
-            }
-        }
-
-        // Text: full name (required, min length)
-        if (full_name.length < 3) {
-            showError('err_full_name', 'Full name must be at least 3 characters.');
-            hasError = true;
-        }
-
-        // Email: basic pattern
-        if (!validateEmail(email)) {
-            showError('err_email', 'Enter a valid email address.');
-            hasError = true;
-        }
-
-        // Phone: digits only, length 10 or so
-        if (!/^[0-9]{10}$/.test(phone)) {
-            showError('err_phone', 'Enter a 10 digit phone number (only numbers).');
-            hasError = true;
-        }
-
-        // Select: must not be empty
-        if (country === '') {
-            showError('err_country', 'Please select a country.');
-            hasError = true;
-        }
-
-        // Radio: one must be selected
-        if (paymentSelected === '') {
-            showError('err_payment', 'Please select payment method.');
-            hasError = true;
-        }
-
-        // Checkbox: must be checked
-        if (!terms) {
-            showError('err_terms', 'You must agree to terms.');
-            hasError = true;
-        }
-
-        // Quantity: must be >= 1
-        if (qty === '' || isNaN(qty) || parseInt(qty) < 1) {
-            showError('err_qty', 'Quantity must be at least 1.');
-            hasError = true;
-        }
-
-        if (hasError) {
-            document.getElementById('form_global_error').innerText = 'Please fix errors.';
-            return;
-        }
-
-        // If you want to submit via AJAX:
-        form.submit(); // or use fetch / $.ajax if you want AJAX
-    });
-});
-
-function clearErrors() {
-    var errors = document.querySelectorAll('.error');
-    errors.forEach(function(el) {
-        el.innerText = '';
-    });
-    var global = document.getElementById('form_global_error');
-    if (global) global.innerText = '';
-}
-
-function showError(id, message) {
-    var el = document.getElementById(id);
-    if (el) el.innerText = message;
-}
-
-function validateEmail(email) {
-    if (email === '') return false;
-    var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-}
-
-You can move these helper functions (clearErrors, showError, validateEmail) into a separate common JS file and reuse across all forms.
-
-If you prefer jQuery, you can do the same using $('#orderForm').on('submit', ...) and $(...).val().
-
-========================================================
-3. GENERAL RULES FOR JS VALIDATION BY INPUT TYPE
-========================================================
-Text input (type="text"):
-- Check required (not empty).
-- Trim spaces.
-- Optional: min / max length.
-- Optional: only letters, or letters + spaces (use regex).
-
-Email (type="email"):
-- Check required.
-- Check pattern with regex.
-
-Phone (type="tel"):
-- Use regex: only digits, fixed length (10, etc.).
-- Example: /^[0-9]{10}$/.
-
-Number (type="number"):
-- Check not empty.
-- Use isNaN and parseInt or parseFloat.
-- Check min and max.
-
-Select:
-- value must not be "" or some "Select" placeholder.
-
-Radio:
-- At least one radio with same name must be checked.
-
-Checkbox:
-- If required (like terms), ensure checked === true.
-
-Multiple select / array:
-- document.querySelectorAll('select[name="product_ids[]"] option:checked') length > 0 etc.
-
-========================================================
-4. PHP VALIDATION (BACKEND)
-========================================================
-Even if JS validation is perfect, PHP must still validate everything, because:
-- User can disable JS.
-- Malicious user can send manual POST requests.
-- Security and data integrity depend on server-side validation.
-
-Typical pattern (inside Controller method):
-
-public function store() {
-    // Example for MVC controller
-    $errors = [];
-
-    $full_name = trim($_POST['full_name'] ?? '');
-    $email     = trim($_POST['email'] ?? '');
-    $phone     = trim($_POST['phone'] ?? '');
-    $country   = $_POST['country'] ?? '';
-    $payment   = $_POST['payment_method'] ?? '';
-    $qty       = $_POST['qty'] ?? '';
-    $terms     = isset($_POST['terms']) ? 1 : 0;
-
-    // Full name
-    if ($full_name === '' || strlen($full_name) < 3) {
-        $errors['full_name'] = 'Full name must be at least 3 characters.';
-    }
-
-    // Email
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors['email'] = 'Invalid email address.';
-    }
-
-    // Phone: digits only
-    if (!preg_match('/^[0-9]{10}$/', $phone)) {
-        $errors['phone'] = 'Phone must be 10 digits.';
-    }
-
-    // Country
-    $allowedCountries = ['IN','US'];
-    if (!in_array($country, $allowedCountries, true)) {
-        $errors['country'] = 'Invalid country.';
-    }
-
-    // Payment method
-    $allowedPayment = ['cod','online'];
-    if (!in_array($payment, $allowedPayment, true)) {
-        $errors['payment_method'] = 'Invalid payment method.';
-    }
-
-    // Qty
-    if ($qty === '' || !ctype_digit($qty) || (int)$qty < 1) {
-        $errors['qty'] = 'Quantity must be at least 1.';
-    }
-
-    // Terms
-    if (!$terms) {
-        $errors['terms'] = 'You must agree to terms.';
-    }
-
-    if (!empty($errors)) {
-        // In MVC, pass errors and old values back to view
-        $data['errors'] = $errors;
-        $data['old'] = $_POST;
-        include 'app/views/order/create.php';
+    if (strpos($class, $namespace) !== 0) {
         return;
     }
 
-    // If no errors, now you can proceed:
-    // - sanitize more if needed
-    // - insert into DB with prepared statements
-}
+    $class = str_replace($namespace, '', $class);
+    $class = str_replace('\\', '/', $class);
 
-Important points:
-- Use trim on strings.
-- Use filter_var for email, integer etc.
-- Use whitelists (in_array) for select, radio values.
-- Use ctype_digit for integers from form.
-- Always use prepared statements (MySQLi prepared or PDO) to avoid SQL injection.
+    $file = MBP_PATH . 'app/' . $class . '.php';
 
-========================================================
-5. HOW TO CONNECT JS AND PHP VALIDATION
-========================================================
-Flow:
-
-1) User loads form page.
-2) JS validation runs on submit.
-3) If JS finds error → show error messages, no request sent.
-4) If JS passes → form is submitted to PHP (normal POST or via AJAX).
-5) PHP validates again:
-   - If errors → return view with errors.
-   - If no errors → save to database, redirect or return success.
-
-If you use AJAX:
-- PHP returns JSON: { success: false, errors: {field: "message", ...} }.
-- JS reads errors and sets them into <span class="error"> elements.
-
-Example simple AJAX response handling (jQuery style):
-
-$.ajax({
-    url: 'index.php?controller=order&action=store',
-    type: 'POST',
-    data: $('#orderForm').serialize(),
-    success: function(res) {
-        var data = JSON.parse(res);
-        if (!data.success) {
-            // data.errors is object: { full_name: "msg", email: "msg", ... }
-            clearErrors();
-            for (var field in data.errors) {
-                if (data.errors.hasOwnProperty(field)) {
-                    $('#err_' + field).text(data.errors[field]);
-                }
-            }
-        } else {
-            // success message, redirect, etc.
-        }
+    if (file_exists($file)) {
+        require_once $file;
     }
 });
 
-========================================================
-6. REUSABLE VALIDATION FILES (GOOD PRACTICE)
-========================================================
-JavaScript:
-- Create a single file assets/js/validation.js.
-- Put common helpers there: validateEmail, validatePhone, showError, clearErrors.
-- For each form, write a small function that uses those helpers.
+/* Load Routes */
+require_once MBP_PATH . 'routes/web.php';
 
-PHP:
-- Create a helper file app/helpers/Validation.php.
-- Put reusable functions like:
 
-  - validate_required($value)
-  - validate_email($value)
-  - validate_phone($value)
-  - validate_in($value, $allowed)
+Explanation:
+- Uses namespace prefix MBP\
+- Maps namespace to app/ directory
+- Loads Controllers, Models automatically
+- Keeps main plugin file clean
 
-- Use them in controllers.
 
-Example:
+5. MODEL (DATA LAYER)
+--------------------------------------------------------------------
+File: app/Models/BookModel.php
 
-// app/helpers/Validation.php
-function v_required($value) {
-    return trim($value) !== '';
+Responsibility:
+- Handle data-related logic
+- Register Custom Post Type
+- No HTML
+- No WordPress hooks directly
+
+Code:
+
+<?php
+
+namespace MBP\Models;
+
+defined('ABSPATH') || exit;
+
+class BookModel
+{
+    public static function register_post_type()
+    {
+        register_post_type('book', [
+            'labels' => [
+                'name'          => __('Books', 'my-book-post'),
+                'singular_name' => __('Book', 'my-book-post'),
+                'add_new'       => __('Add New Book', 'my-book-post'),
+                'edit_item'     => __('Edit Book', 'my-book-post'),
+            ],
+            'public'        => true,
+            'menu_icon'     => 'dashicons-book',
+            'has_archive'   => true,
+            'rewrite'       => ['slug' => 'books'],
+            'supports'      => ['title', 'editor', 'thumbnail'],
+            'show_in_rest'  => true,
+        ]);
+    }
 }
 
-function v_email($value) {
-    return filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
+Why this is Model:
+- Handles only post type definition
+- Can be reused or extended
+- Clean separation of concerns
+
+
+6. CONTROLLER (LOGIC LAYER)
+--------------------------------------------------------------------
+File: app/Controllers/BookController.php
+
+Responsibility:
+- Connect Model and View
+- Handle WordPress hooks
+- Process frontend display logic
+
+Code:
+
+<?php
+
+namespace MBP\Controllers;
+
+use MBP\Models\BookModel;
+
+defined('ABSPATH') || exit;
+
+class BookController
+{
+    public function __construct()
+    {
+        add_action('init', [$this, 'register_post_type']);
+        add_shortcode('book_list', [$this, 'render_books']);
+    }
+
+    public function register_post_type()
+    {
+        BookModel::register_post_type();
+    }
+
+    public function render_books()
+    {
+        ob_start();
+
+        $query = new \WP_Query([
+            'post_type'      => 'book',
+            'posts_per_page' => -1,
+        ]);
+
+        include MBP_PATH . 'app/Views/book-list.php';
+
+        wp_reset_postdata();
+        return ob_get_clean();
+    }
 }
 
-Then in controller:
+Why this is Controller:
+- Controls plugin behavior
+- Uses Model for data
+- Sends data to View
+- Registers hooks & shortcodes
 
-require_once 'app/helpers/Validation.php';
 
-if (!v_required($full_name)) { ... }
+7. VIEW (PRESENTATION LAYER)
+--------------------------------------------------------------------
+File: app/Views/book-list.php
 
-========================================================
-7. MINIMUM CHECKLIST FOR YOUR PROJECT
-========================================================
-For each form:
-- Text inputs: required + length + pattern if needed.
-- Email: required + format check.
-- Phone: digits only + fixed length.
-- Numbers (qty, price): numeric + range.
-- Select: not empty + must be in allowed values.
-- Radio: one must be checked + value must be allowed.
-- Checkbox: if required, must be checked.
-- For arrays (categories, products, users):
-  - Make sure each id is numeric and exists in DB.
+Responsibility:
+- Display output
+- No database queries
+- No business logic
 
-For each controller:
-- Never trust $_POST directly.
-- Always validate and sanitize.
-- On error: send error messages back to view.
-- On success: use prepared statements for DB operations.
+Code:
 
-========================================================
-END OF VALIDATION GUIDE
-========================================================
+<?php defined('ABSPATH') || exit; ?>
+
+<div class="book-list">
+    <?php if ($query->have_posts()) : ?>
+        <?php while ($query->have_posts()) : $query->the_post(); ?>
+            <div class="book-item">
+                <h3><?php the_title(); ?></h3>
+                <div><?php the_content(); ?></div>
+            </div>
+        <?php endwhile; ?>
+    <?php else : ?>
+        <p><?php _e('No books found', 'my-book-post'); ?></p>
+    <?php endif; ?>
+</div>
+
+Why this is View:
+- Only HTML + minimal PHP
+- Reusable UI
+- Easy to style later
+
+
+8. ROUTES FILE (BOOTSTRAP CONTROLLERS)
+--------------------------------------------------------------------
+File: routes/web.php
+
+Purpose:
+- Central place to initialize controllers
+- Keeps autoload clean
+
+Code:
+
+<?php
+
+use MBP\Controllers\BookController;
+
+defined('ABSPATH') || exit;
+
+new BookController();
+
+
+9. FRONTEND DISPLAY
+--------------------------------------------------------------------
+Shortcode:
+[book_list]
+
+Usage:
+- Add shortcode to any Page or Post
+- Displays all Books
+- Uses MVC internally
+
+
+10. ADMIN PANEL RESULT
+--------------------------------------------------------------------
+After plugin activation:
+- New menu appears: "Books"
+- Add / Edit / Delete books
+- Supports Gutenberg editor
+- Archive URL: /books
+
+
+11. WHY THIS STRUCTURE IS STANDARD
+--------------------------------------------------------------------
+✔ MVC architecture
+✔ Autoloading
+✔ Namespaces
+✔ No logic in main file
+✔ WordPress Coding Standards
+✔ Scalable & maintainable
+✔ Beginner-friendly
+
+
+12. FUTURE ENHANCEMENTS (OPTIONAL)
+--------------------------------------------------------------------
+- Custom Taxonomy (Genre)
+- Custom Meta Fields (Author, Price)
+- Pagination on frontend
+- Admin settings page
+- REST API endpoints
+- CSS & JS enqueue via controller
+
+
+END OF FILE
+====================================================================
+
