@@ -1,774 +1,498 @@
-
-
 ==================================================
 WORDPRESS CORE FUNCTIONS & HOOKS – DETAILED GUIDE
-(With Parameter Explanation)
+(Extended Definitions | Beginner Friendly)
 ==================================================
 
 --------------------------------------------------
 1. add_option()
 --------------------------------------------------
 Definition:
-Adds a new option into wp_options table.
+add_option() is used to create a new site-wide
+setting in WordPress. It stores data permanently
+in the wp_options table and is usually used by
+plugins or themes during activation to save
+default configuration values.
 
 Syntax:
 add_option( $option_name, $value, $deprecated, $autoload );
 
 Parameters:
 $option_name → (string) Unique name of option
-$value       → (mixed) Data to store (string, array, object)
-$deprecated  → (string) Not used anymore (keep empty)
-$autoload    → (yes|no) Load automatically with WP or not
+$value       → (mixed) Data to store
+$deprecated  → (string) Not used anymore
+$autoload    → (yes|no) Load option automatically
 
 Return:
-true if added, false if already exists
-
-Example:
-add_option('theme_color', 'blue');
-
-Example (autoload no):
-add_option('api_token', '12345', '', 'no');
+true if added, false if option exists
 
 Why needed:
-Store plugin or theme settings permanently.
+Used for global configuration storage.
 
 --------------------------------------------------
 2. update_option()
 --------------------------------------------------
 Definition:
-Updates an option or creates it if missing.
+update_option() updates an existing option value
+or creates it if it does not exist. It ensures
+that configuration data stays updated without
+checking if the option already exists.
 
 Syntax:
 update_option( $option_name, $value, $autoload );
 
-Parameters:
-$option_name → (string) Existing or new option name
-$value       → (mixed) New value
-$autoload    → (yes|no|null) Autoload behavior
-
 Return:
-true if value changed, false if unchanged
+true if value changed
 
-Example:
-update_option('theme_color', 'red');
-
-Difference from add_option:
-update_option works even if option exists.
+Why needed:
+Safe way to maintain changing settings.
 
 --------------------------------------------------
 3. delete_option()
 --------------------------------------------------
 Definition:
-Deletes an option from database.
+delete_option() removes a stored option from the
+database completely. It is commonly used during
+plugin uninstallation to clean unused data.
 
 Syntax:
 delete_option( $option_name );
 
-Parameters:
-$option_name → (string) Name of option to remove
-
-Return:
-true on success
-
-Example:
-delete_option('theme_color');
+Why needed:
+Prevents database clutter.
 
 --------------------------------------------------
 4. wp_head()
 --------------------------------------------------
 Definition:
-Triggers head hooks for scripts, styles, meta tags.
+wp_head() triggers all actions hooked to the
+<head> section of a WordPress page. It allows
+themes and plugins to insert CSS, JavaScript,
+meta tags, SEO data, and other required assets.
 
 Syntax:
 wp_head();
 
-Parameters:
-No parameters
-
-Return:
-void
-
-Example:
-<head>
-  <?php wp_head(); ?>
-</head>
-
 Why needed:
-Required for plugins, SEO, CSS, JS.
+Without wp_head(), plugins and themes break.
 
 --------------------------------------------------
 5. wp_footer()
 --------------------------------------------------
 Definition:
-Triggers footer hooks.
+wp_footer() executes actions before the closing
+</body> tag. Most JavaScript files and tracking
+scripts depend on this hook to work properly.
 
 Syntax:
 wp_footer();
 
-Parameters:
-No parameters
-
-Return:
-void
-
-Example:
-<?php wp_footer(); ?>
+Why needed:
+Improves performance and plugin compatibility.
 
 --------------------------------------------------
 6. get_template_part()
 --------------------------------------------------
 Definition:
-Loads reusable template file.
+get_template_part() loads reusable template files
+inside themes. It helps break layouts into
+smaller components and supports child themes.
 
 Syntax:
 get_template_part( $slug, $name );
 
-Parameters:
-$slug → (string) Base file name
-$name → (string|null) Optional specific file
-
-Loaded files:
-slug-name.php → slug.php
-
-Example:
-get_template_part('template-parts/content');
-
-Example:
-get_template_part('template-parts/content', 'single');
+Why needed:
+Improves code reuse and maintainability.
 
 --------------------------------------------------
 7. wp_nav_menu()
 --------------------------------------------------
 Definition:
-Displays a WordPress menu.
+wp_nav_menu() outputs a navigation menu created
+from the WordPress admin dashboard. It allows
+dynamic menu management without code changes.
 
 Syntax:
 wp_nav_menu( $args );
 
-Parameters (array):
-theme_location → Menu location registered
-menu           → Menu ID or slug
-menu_class     → CSS class
-container      → HTML wrapper
-echo           → true/false (print or return)
-
-Example:
-wp_nav_menu([
-  'theme_location' => 'primary',
-  'menu_class' => 'nav-menu'
-]);
+Why needed:
+Admin-controlled navigation system.
 
 --------------------------------------------------
 8. get_template_directory_uri()
 --------------------------------------------------
 Definition:
-Returns parent theme URL.
+Returns the URL of the parent theme directory.
+Used to load CSS, JS, images, and assets safely.
 
 Syntax:
 get_template_directory_uri();
 
-Parameters:
-None
-
-Return:
-string (URL)
-
-Example:
-echo get_template_directory_uri() . '/style.css';
+Why needed:
+Avoids hardcoded paths.
 
 --------------------------------------------------
 9. home_url()
 --------------------------------------------------
 Definition:
-Returns site homepage URL.
+home_url() returns the public homepage URL of
+the website. It is mainly used for frontend
+links and redirects.
 
 Syntax:
 home_url( $path, $scheme );
 
-Parameters:
-$path   → (string) Extra path
-$scheme → (http|https|null)
-
-Return:
-string
-
-Example:
-home_url('/contact');
+Why needed:
+Dynamic and environment-safe URLs.
 
 --------------------------------------------------
 10. site_url()
 --------------------------------------------------
 Definition:
-Returns WordPress install URL.
+site_url() returns the WordPress core installation
+URL. It is mostly used for admin and system paths.
 
 Syntax:
 site_url( $path, $scheme );
 
-Parameters:
-$path   → (string) Extra path
-$scheme → Protocol
-
-Example:
-site_url('/wp-admin');
+Why needed:
+Correct backend navigation.
 
 --------------------------------------------------
 11. get_search_form()
 --------------------------------------------------
 Definition:
-Displays WordPress search form.
+get_search_form() displays or returns the default
+WordPress search form. It supports custom search
+templates automatically.
 
 Syntax:
 get_search_form( $echo );
 
-Parameters:
-$echo → (true|false) Print or return HTML
-
-Return:
-HTML or void
-
-Example:
-get_search_form();
+Why needed:
+Standardized search feature.
 
 --------------------------------------------------
 12. register_sidebar()
 --------------------------------------------------
 Definition:
-Registers widget area.
+register_sidebar() creates a widget-ready area
+where users can add widgets from the admin panel.
 
 Syntax:
 register_sidebar( $args );
 
-Parameters (array):
-name          → Sidebar name
-id            → Unique ID
-description   → Info text
-before_widget → HTML before widget
-after_widget  → HTML after widget
-before_title  → HTML before title
-after_title   → HTML after title
-
-Example:
-register_sidebar([
- 'name' => 'Main Sidebar',
- 'id' => 'sidebar-1'
-]);
+Why needed:
+Flexible widget-based layouts.
 
 --------------------------------------------------
 13. get_sidebar()
 --------------------------------------------------
 Definition:
-Loads sidebar template.
+get_sidebar() loads the sidebar template file
+(sidebar.php or sidebar-name.php).
 
 Syntax:
 get_sidebar( $name );
 
-Parameters:
-$name → (string|null) Sidebar file name
-
-Example:
-get_sidebar();
-get_sidebar('shop');
+Why needed:
+Separates layout structure.
 
 --------------------------------------------------
 14. is_front_page()
 --------------------------------------------------
 Definition:
-Checks if homepage.
+Checks whether the currently displayed page is
+the site's front page.
 
 Syntax:
 is_front_page();
 
-Parameters:
-None
-
-Return:
-boolean
-
-Example:
-if(is_front_page()){
- echo "Home";
-}
+Why needed:
+Conditional layouts.
 
 --------------------------------------------------
 15. is_admin()
 --------------------------------------------------
 Definition:
-Checks admin dashboard.
+Determines whether the current request is being
+executed inside the WordPress admin dashboard.
 
 Syntax:
 is_admin();
 
-Return:
-boolean
-
-Example:
-if(is_admin()){
- // admin logic
-}
+Why needed:
+Separate admin and frontend logic.
 
 --------------------------------------------------
 16. have_posts()
 --------------------------------------------------
 Definition:
-Checks if posts exist.
+have_posts() checks whether posts exist in the
+current WordPress query.
 
 Syntax:
 have_posts();
 
-Return:
-boolean
-
-Example:
-while(have_posts()){
- the_post();
-}
+Why needed:
+Controls content loops.
 
 --------------------------------------------------
 17. the_post()
 --------------------------------------------------
 Definition:
-Sets up post data.
+the_post() sets up global post data for the
+current loop iteration.
 
 Syntax:
 the_post();
 
-Parameters:
-None
-
 Why needed:
-Required before template tags.
+Required for template tags.
 
 --------------------------------------------------
 18. get_footer()
 --------------------------------------------------
 Definition:
-Loads footer file.
+get_footer() loads the footer template file.
 
 Syntax:
 get_footer( $name );
 
-Parameters:
-$name → (string|null) Footer variation
-
-Example:
-get_footer();
-get_footer('shop');
+Why needed:
+Reusable page structure.
 
 --------------------------------------------------
 19. dynamic_sidebar()
 --------------------------------------------------
 Definition:
-Displays widgets from sidebar.
+dynamic_sidebar() outputs widgets assigned to a
+registered sidebar.
 
 Syntax:
 dynamic_sidebar( $index );
 
-Parameters:
-$index → Sidebar ID or name
-
-Return:
-boolean
-
-Example:
-dynamic_sidebar('sidebar-1');
+Why needed:
+Displays widget content.
 
 --------------------------------------------------
 20. add_action()
 --------------------------------------------------
 Definition:
-Hooks function into WordPress lifecycle.
+add_action() attaches a function to a specific
+WordPress event (hook). It allows extending
+WordPress behavior without editing core files.
 
 Syntax:
 add_action( $hook, $callback, $priority, $accepted_args );
 
-Parameters:
-$hook          → Action name
-$callback      → Function name
-$priority      → Execution order (default 10)
-$accepted_args → Number of arguments
-
-Example:
-add_action('init', 'my_function');
-
-Example:
-add_action('wp_enqueue_scripts', 'load_assets', 20);
-
-Difference from add_filter:
-Action performs task, Filter modifies data.
+Why needed:
+Core of WordPress extensibility.
 
 --------------------------------------------------
 21. add_filter()
 --------------------------------------------------
 Definition:
-Hooks a function to modify data before output.
+add_filter() modifies data before it is output
+or saved. Unlike actions, filters must return
+a value.
 
 Syntax:
 add_filter( $hook, $callback, $priority, $accepted_args );
 
-Parameters:
-$hook          → Filter name
-$callback      → Function to modify data
-$priority      → Execution order (default 10)
-$accepted_args → Number of arguments
-
-Return:
-true
-
-Example:
-add_filter('the_title', 'change_title');
-
 Why needed:
-Modify content without editing core.
-
-Difference from add_action:
-Filter returns data, action does not.
+Customize output safely.
 
 --------------------------------------------------
 22. wp_enqueue_style()
 --------------------------------------------------
 Definition:
-Safely adds CSS files to WordPress.
+Registers and loads CSS files in a controlled
+manner, preventing duplication and conflicts.
 
 Syntax:
 wp_enqueue_style( $handle, $src, $deps, $ver, $media );
 
-Parameters:
-$handle → Unique name
-$src    → File URL
-$deps   → Dependencies
-$ver    → Version
-$media  → Media type
-
-Example:
-wp_enqueue_style(
- 'main-style',
- get_stylesheet_uri()
-);
-
 Why needed:
-Prevents CSS conflicts.
+Proper asset management.
 
 --------------------------------------------------
 23. wp_enqueue_script()
 --------------------------------------------------
 Definition:
-Safely adds JavaScript files.
+Safely loads JavaScript files with dependency
+management and footer placement.
 
 Syntax:
 wp_enqueue_script( $handle, $src, $deps, $ver, $in_footer );
 
-Parameters:
-$handle     → Script name
-$src        → File URL
-$deps       → Dependencies
-$ver        → Version
-$in_footer  → true/false
-
-Example:
-wp_enqueue_script(
- 'main-js',
- get_template_directory_uri().'/js/main.js',
- ['jquery'],
- null,
- true
-);
+Why needed:
+Avoid JS conflicts.
 
 --------------------------------------------------
 24. get_header()
 --------------------------------------------------
 Definition:
-Loads header template.
+Loads the header template file.
 
 Syntax:
 get_header( $name );
 
-Parameters:
-$name → (string|null) Header variation
-
-Example:
-get_header();
-get_header('shop');
-
-Difference from wp_head:
-get_header loads file,
-wp_head runs hooks.
+Why needed:
+Consistent page layout.
 
 --------------------------------------------------
 25. the_title()
 --------------------------------------------------
 Definition:
-Displays post title.
+Outputs the title of the current post inside
+the WordPress loop.
 
 Syntax:
 the_title( $before, $after, $echo );
-
-Parameters:
-$before → HTML before title
-$after  → HTML after title
-$echo   → true/false
-
-Example:
-the_title('<h2>', '</h2>');
 
 --------------------------------------------------
 26. the_content()
 --------------------------------------------------
 Definition:
-Displays post content.
+Displays the main content of the post, including
+shortcodes and formatting.
 
 Syntax:
 the_content( $more_link_text, $strip_teaser );
-
-Parameters:
-$more_link_text → Read more text
-$strip_teaser   → Remove teaser or not
-
-Example:
-the_content();
 
 --------------------------------------------------
 27. get_the_ID()
 --------------------------------------------------
 Definition:
-Returns current post ID.
+Returns the numeric ID of the current post.
 
 Syntax:
 get_the_ID();
-
-Return:
-integer
-
-Example:
-$post_id = get_the_ID();
 
 --------------------------------------------------
 28. wp_die()
 --------------------------------------------------
 Definition:
-Stops execution with message.
+Stops WordPress execution safely and displays
+an error message.
 
 Syntax:
 wp_die( $message, $title, $args );
-
-Parameters:
-$message → Error message
-$title   → Page title
-$args    → Response settings
-
-Example:
-wp_die('Access Denied');
-
-Why needed:
-Safe error handling.
 
 --------------------------------------------------
 29. wp_redirect()
 --------------------------------------------------
 Definition:
-Redirects user to another URL.
+Redirects users to another URL using HTTP headers.
 
 Syntax:
 wp_redirect( $location, $status );
-
-Parameters:
-$location → URL
-$status   → HTTP status (default 302)
-
-Return:
-void (must use exit)
-
-Example:
-wp_redirect(home_url());
-exit;
 
 --------------------------------------------------
 30. admin_url()
 --------------------------------------------------
 Definition:
-Returns admin panel URL.
+Returns a URL pointing to the WordPress admin
+dashboard.
 
 Syntax:
 admin_url( $path, $scheme );
-
-Parameters:
-$path   → Extra path
-$scheme → Protocol
-
-Example:
-admin_url('admin.php');
 
 --------------------------------------------------
 31. esc_html()
 --------------------------------------------------
 Definition:
-Escapes text for safe HTML output.
+Escapes HTML output to prevent XSS attacks.
 
 Syntax:
 esc_html( $text );
-
-Parameters:
-$text → String to sanitize
-
-Return:
-string
-
-Example:
-echo esc_html($user_input);
-
-Why needed:
-Security (XSS prevention).
 
 --------------------------------------------------
 32. esc_url()
 --------------------------------------------------
 Definition:
-Sanitizes URLs.
+Sanitizes URLs before output.
 
 Syntax:
 esc_url( $url );
-
-Example:
-echo esc_url(home_url());
 
 --------------------------------------------------
 33. get_option()
 --------------------------------------------------
 Definition:
-Retrieves option value.
+Fetches a stored option value from wp_options.
 
 Syntax:
 get_option( $option, $default );
-
-Parameters:
-$option  → Option name
-$default → Default value
-
-Return:
-mixed
-
-Example:
-$color = get_option('theme_color');
 
 --------------------------------------------------
 34. wp_create_nonce()
 --------------------------------------------------
 Definition:
-Creates security token.
+Generates a security token to protect forms and
+URLs from unauthorized actions.
 
 Syntax:
 wp_create_nonce( $action );
-
-Parameters:
-$action → Action name
-
-Return:
-string
-
-Example:
-$nonce = wp_create_nonce('save_data');
 
 --------------------------------------------------
 35. check_admin_referer()
 --------------------------------------------------
 Definition:
-Verifies nonce for admin actions.
+Validates nonce values for secure admin actions.
 
 Syntax:
 check_admin_referer( $action, $query_arg );
-
-Example:
-check_admin_referer('save_data');
 
 --------------------------------------------------
 36. current_user_can()
 --------------------------------------------------
 Definition:
-Checks user capability.
+Checks if the current user has a specific
+capability or permission.
 
 Syntax:
 current_user_can( $capability );
-
-Parameters:
-$capability → Permission name
-
-Return:
-boolean
-
-Example:
-if(current_user_can('manage_options')){}
 
 --------------------------------------------------
 37. wp_insert_post()
 --------------------------------------------------
 Definition:
-Creates new post programmatically.
+Programmatically creates or updates posts.
 
 Syntax:
 wp_insert_post( $postarr );
-
-Parameters:
-$postarr → Post data array
-
-Return:
-Post ID or WP_Error
-
-Example:
-wp_insert_post([
- 'post_title' => 'New Post',
- 'post_status' => 'publish'
-]);
 
 --------------------------------------------------
 38. get_posts()
 --------------------------------------------------
 Definition:
-Fetches posts.
+Retrieves posts using simplified query arguments.
 
 Syntax:
 get_posts( $args );
-
-Parameters:
-$args → Query arguments
-
-Return:
-array of posts
-
-Example:
-$posts = get_posts(['numberposts'=>5]);
 
 --------------------------------------------------
 39. wp_get_current_user()
 --------------------------------------------------
 Definition:
-Gets logged-in user data.
+Returns the currently logged-in user's data.
 
 Syntax:
 wp_get_current_user();
-
-Return:
-WP_User object
-
-Example:
-$user = wp_get_current_user();
 
 --------------------------------------------------
 40. wp_logout()
 --------------------------------------------------
 Definition:
-Logs out current user.
+Logs out the current user and destroys session.
 
 Syntax:
-wp_logout();
-
-Example:
 wp_logout();
 
 ==================================================
 END OF FILE
 ==================================================
-
-
-
 
 
 
