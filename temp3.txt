@@ -1,83 +1,263 @@
-CREATE TABLE settings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    setting_key VARCHAR(100) UNIQUE,
-    setting_value TEXT
+
+
+
+==================================================
+WORDPRESS CORE CONCEPTS – SHORT BUT COMPLETE GUIDE
+==================================================
+
+--------------------------------------------------
+1. What is Global Options?
+--------------------------------------------------
+Definition:
+Global options are site-wide settings used by
+WordPress, themes, and plugins.
+
+Where stored:
+Database table → wp_options
+
+Examples:
+- siteurl
+- home
+- blogname
+- admin_email
+- plugin settings
+
+How accessed:
+get_option()
+update_option()
+
+Why needed:
+- Persistent configuration
+- Shared across entire site
+
+--------------------------------------------------
+2. What is a Post?
+--------------------------------------------------
+Definition:
+A post is dynamic content used mainly for blogs,
+news, or updates.
+
+Where stored:
+Database table → wp_posts
+
+Related tables:
+- wp_postmeta (extra data)
+- wp_terms (categories/tags)
+
+Post type value:
+post
+
+Why needed:
+- Time-based content
+- Supports categories & tags
+
+--------------------------------------------------
+3. What is a Page?
+--------------------------------------------------
+Definition:
+A page is static content (About, Contact).
+
+Where stored:
+Database table → wp_posts
+
+Post type value:
+page
+
+Key difference from post:
+- No categories/tags by default
+- Not date-based
+
+--------------------------------------------------
+4. What is Taxonomy?
+--------------------------------------------------
+Definition:
+Taxonomy is a system to classify content.
+
+Types:
+- Category
+- Tag
+- Custom taxonomy
+
+Where stored:
+- wp_terms
+- wp_term_taxonomy
+- wp_term_relationships
+
+Example:
+Category → News
+Tag → WordPress
+
+Why needed:
+- Organize content
+- Improve navigation & SEO
+
+--------------------------------------------------
+5. Default User Roles
+--------------------------------------------------
+Roles:
+- Administrator → Full access
+- Editor → Manage all posts/pages
+- Author → Own posts only
+- Contributor → Write, no publish
+- Subscriber → Read-only
+
+Where stored:
+- wp_users
+- wp_usermeta
+
+--------------------------------------------------
+6. What is post_meta & user_meta?
+--------------------------------------------------
+Definition:
+Metadata stores extra information.
+
+post_meta:
+Extra data for posts/pages
+Table → wp_postmeta
+
+Examples:
+- custom fields
+- featured flags
+
+user_meta:
+Extra data for users
+Table → wp_usermeta
+
+Examples:
+- phone number
+- profile image
+
+Functions:
+get_post_meta()
+get_user_meta()
+
+--------------------------------------------------
+7. What is Text Domain?
+--------------------------------------------------
+Definition:
+Text domain connects strings to translations.
+
+Used in:
+Themes & Plugins (i18n)
+
+Example:
+__('Hello', 'my-plugin');
+
+Where defined:
+- Plugin header
+- Theme style.css
+
+Why needed:
+- Multi-language support
+
+--------------------------------------------------
+8. What is Slug?
+--------------------------------------------------
+Definition:
+Slug is URL-friendly identifier.
+
+Example:
+Post title → My First Post
+Slug → my-first-post
+
+Where stored:
+wp_posts → post_name
+
+Why needed:
+- SEO-friendly URLs
+- Unique identifiers
+
+--------------------------------------------------
+9. What is Multisite?
+--------------------------------------------------
+Definition:
+Multisite allows multiple sites from one
+WordPress installation.
+
+Enabled via:
+wp-config.php
+
+Example:
+network of sites
+
+Tables:
+- wp_blogs
+- wp_site
+- wp_sitemeta
+
+Why needed:
+- Manage multiple sites centrally
+
+--------------------------------------------------
+10. Single Site vs Multisite
+--------------------------------------------------
+Single Site:
+- One website
+- Simple setup
+- Separate installs needed
+
+Multisite:
+- Multiple sites
+- Shared core files
+- Centralized user management
+
+Use case:
+Single → Blogs, portfolios
+Multisite → Universities, networks
+
+--------------------------------------------------
+11. What is Permalink?
+--------------------------------------------------
+Definition:
+Permanent URL structure for content.
+
+Example:
+https://site.com/blog/my-post/
+
+Where set:
+Admin → Settings → Permalinks
+
+--------------------------------------------------
+12. Permalink vs URL
+--------------------------------------------------
+URL:
+Any web address
+Example: https://site.com/?p=123
+
+Permalink:
+SEO-friendly permanent link
+Example: /my-post/
+
+Key difference:
+Permalink is a type of URL.
+
+--------------------------------------------------
+13. How to Handle SQL in WordPress
+--------------------------------------------------
+Best Practice:
+NEVER write raw SQL directly.
+
+Use:
+- WP_Query
+- get_posts()
+- get_option()
+- $wpdb (safe queries)
+
+Example ($wpdb):
+global $wpdb;
+$results = $wpdb->get_results(
+  "SELECT * FROM {$wpdb->posts}"
 );
 
+Security:
+- Prepared statements
+- Nonces
+- Escaping
 
-INSERT INTO settings (setting_key, setting_value) VALUES
-('theme_bg_color', '#ffffff'),
-('theme_primary_color', '#7D1128'),
-('theme_font_family', 'Poppins, sans-serif');
+Why needed:
+- Prevent SQL injection
+- Maintain compatibility
 
-
-function getSetting($key) {
-    global $pdo;
-    $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = ?");
-    $stmt->execute([$key]);
-    return $stmt->fetchColumn();
-}
-
-
-function setSetting($key, $value) {
-    global $pdo;
-    $stmt = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) 
-                           VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
-    $stmt->execute([$key, $value, $value]);
-}
-
-
-
-
-<?php
-// Save Form
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    setSetting('theme_bg_color', $_POST['bg_color']);
-    setSetting('theme_primary_color', $_POST['primary_color']);
-    setSetting('theme_font_family', $_POST['font_family']);
-    echo "<script>alert('Settings Updated!');</script>";
-}
-?>
-
-<h2>Theme Settings</h2>
-<form method="POST">
-    <label>Background Color:</label><br>
-    <input type="color" name="bg_color" value="<?= getSetting('theme_bg_color'); ?>"><br><br>
-
-    <label>Primary Color (Buttons/Links):</label><br>
-    <input type="color" name="primary_color" value="<?= getSetting('theme_primary_color'); ?>"><br><br>
-
-    <label>Font Family:</label><br>
-    <select name="font_family">
-        <option <?= getSetting('theme_font_family') == 'Poppins, sans-serif' ? 'selected' : '' ?>>Poppins, sans-serif</option>
-        <option <?= getSetting('theme_font_family') == 'Roboto, sans-serif' ? 'selected' : '' ?>>Roboto, sans-serif</option>
-        <option <?= getSetting('theme_font_family') == 'Playfair Display, serif' ? 'selected' : '' ?>>Playfair Display, serif</option>
-    </select><br><br>
-
-    <button type="submit">Save Settings</button>
-</form>
-
-
-
-
-<?php
-$bg = getSetting('theme_bg_color');
-$primary = getSetting('theme_primary_color');
-$font = getSetting('theme_font_family');
-?>
-<style>
-:root {
-    --bg-color: <?= $bg ?>;
-    --primary-color: <?= $primary ?>;
-    --font-family: <?= $font ?>;
-}
-body {
-    background-color: var(--bg-color);
-    font-family: var(--font-family);
-}
-button, .btn-primary {
-    background-color: var(--primary-color);
-    color: white;
-}
-a { color: var(--primary-color); }
-</style>
+==================================================
+END OF FILE
+==================================================
