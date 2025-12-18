@@ -1,494 +1,270 @@
-==================================================
-WORDPRESS CORE FUNCTIONS & HOOKS – DETAILED GUIDE
-(Extended Definitions | Beginner Friendly)
-==================================================
+
 
 --------------------------------------------------
-1. add_option()
+1. register_nav_menu()
 --------------------------------------------------
-Definition:
-add_option() is used to create a new site-wide
-setting in WordPress. It stores data permanently
-in the wp_options table and is usually used by
-plugins or themes during activation to save
-default configuration values.
+What it is (Simple):
+register_nav_menu() tells WordPress:
+"Hey WordPress, my theme has a menu location."
+
+It DOES NOT show anything on the website.
+It only registers a PLACE where a menu can go.
+
+Why it exists:
+WordPress needs to know where menus are allowed
+(header, footer, sidebar, etc.).
+
+Where it is used:
+functions.php (Theme)
 
 Syntax:
-add_option( $option_name, $value, $deprecated, $autoload );
+register_nav_menu( $location, $description );
 
 Parameters:
-$option_name → (string) Unique name of option
-$value       → (mixed) Data to store
-$deprecated  → (string) Not used anymore
-$autoload    → (yes|no) Load option automatically
+$location     → Internal name (used in code)
+$description  → Name shown in Admin Dashboard
 
-Return:
-true if added, false if option exists
+Example:
+register_nav_menu('primary', 'Main Header Menu');
 
-Why needed:
-Used for global configuration storage.
-
---------------------------------------------------
-2. update_option()
---------------------------------------------------
-Definition:
-update_option() updates an existing option value
-or creates it if it does not exist. It ensures
-that configuration data stays updated without
-checking if the option already exists.
-
-Syntax:
-update_option( $option_name, $value, $autoload );
-
-Return:
-true if value changed
-
-Why needed:
-Safe way to maintain changing settings.
+What happens after this:
+Admin → Appearance → Menus
+You will see "Main Header Menu" location.
 
 --------------------------------------------------
-3. delete_option()
+2. wp_nav_menu()
 --------------------------------------------------
-Definition:
-delete_option() removes a stored option from the
-database completely. It is commonly used during
-plugin uninstallation to clean unused data.
+What it is (Simple):
+wp_nav_menu() DISPLAYS the menu on the website.
 
-Syntax:
-delete_option( $option_name );
+Think like this:
+register_nav_menu() = Register menu location
+wp_nav_menu()       = Show menu on screen
 
-Why needed:
-Prevents database clutter.
-
---------------------------------------------------
-4. wp_head()
---------------------------------------------------
-Definition:
-wp_head() triggers all actions hooked to the
-<head> section of a WordPress page. It allows
-themes and plugins to insert CSS, JavaScript,
-meta tags, SEO data, and other required assets.
-
-Syntax:
-wp_head();
-
-Why needed:
-Without wp_head(), plugins and themes break.
-
---------------------------------------------------
-5. wp_footer()
---------------------------------------------------
-Definition:
-wp_footer() executes actions before the closing
-</body> tag. Most JavaScript files and tracking
-scripts depend on this hook to work properly.
-
-Syntax:
-wp_footer();
-
-Why needed:
-Improves performance and plugin compatibility.
-
---------------------------------------------------
-6. get_template_part()
---------------------------------------------------
-Definition:
-get_template_part() loads reusable template files
-inside themes. It helps break layouts into
-smaller components and supports child themes.
-
-Syntax:
-get_template_part( $slug, $name );
-
-Why needed:
-Improves code reuse and maintainability.
-
---------------------------------------------------
-7. wp_nav_menu()
---------------------------------------------------
-Definition:
-wp_nav_menu() outputs a navigation menu created
-from the WordPress admin dashboard. It allows
-dynamic menu management without code changes.
+Where it is used:
+header.php, footer.php, sidebar.php
 
 Syntax:
 wp_nav_menu( $args );
 
-Why needed:
-Admin-controlled navigation system.
+Important Parameters:
+theme_location → Menu location name
+menu_class     → CSS class
+container      → HTML wrapper
+
+Example:
+wp_nav_menu([
+  'theme_location' => 'primary',
+  'menu_class' => 'main-menu'
+]);
+
+How it works:
+1) You register menu location
+2) Admin assigns a menu
+3) wp_nav_menu prints it
 
 --------------------------------------------------
-8. get_template_directory_uri()
+MENU FLOW (IMPORTANT)
 --------------------------------------------------
-Definition:
-Returns the URL of the parent theme directory.
-Used to load CSS, JS, images, and assets safely.
+Theme → register_nav_menu()
+Admin → Create menu
+Theme → wp_nav_menu()
 
-Syntax:
-get_template_directory_uri();
-
-Why needed:
-Avoids hardcoded paths.
+If any step is missing → menu will NOT show.
 
 --------------------------------------------------
-9. home_url()
+3. register_sidebar()
 --------------------------------------------------
-Definition:
-home_url() returns the public homepage URL of
-the website. It is mainly used for frontend
-links and redirects.
+What it is (Simple):
+register_sidebar() creates a WIDGET AREA.
 
-Syntax:
-home_url( $path, $scheme );
+Widget area = place where widgets can be added
+from admin panel (sidebar, footer, etc.)
 
-Why needed:
-Dynamic and environment-safe URLs.
-
---------------------------------------------------
-10. site_url()
---------------------------------------------------
-Definition:
-site_url() returns the WordPress core installation
-URL. It is mostly used for admin and system paths.
-
-Syntax:
-site_url( $path, $scheme );
-
-Why needed:
-Correct backend navigation.
-
---------------------------------------------------
-11. get_search_form()
---------------------------------------------------
-Definition:
-get_search_form() displays or returns the default
-WordPress search form. It supports custom search
-templates automatically.
-
-Syntax:
-get_search_form( $echo );
-
-Why needed:
-Standardized search feature.
-
---------------------------------------------------
-12. register_sidebar()
---------------------------------------------------
-Definition:
-register_sidebar() creates a widget-ready area
-where users can add widgets from the admin panel.
+Where it is used:
+functions.php
 
 Syntax:
 register_sidebar( $args );
 
-Why needed:
-Flexible widget-based layouts.
+Important Parameters:
+name → Visible name in admin
+id   → Unique ID (used in code)
+
+Example:
+register_sidebar([
+  'name' => 'Main Sidebar',
+  'id'   => 'sidebar-1'
+]);
+
+What happens after this:
+Admin → Appearance → Widgets
+You will see "Main Sidebar"
 
 --------------------------------------------------
-13. get_sidebar()
+4. get_sidebar()
 --------------------------------------------------
-Definition:
-get_sidebar() loads the sidebar template file
-(sidebar.php or sidebar-name.php).
+What it is (Simple):
+get_sidebar() loads the sidebar FILE.
+
+It includes:
+sidebar.php
+or sidebar-name.php
+
+Where it is used:
+index.php, page.php, single.php
 
 Syntax:
 get_sidebar( $name );
 
-Why needed:
-Separates layout structure.
+Example:
+get_sidebar();        → loads sidebar.php
+get_sidebar('shop'); → loads sidebar-shop.php
+
+IMPORTANT:
+get_sidebar() does NOT show widgets.
+It only loads the file.
 
 --------------------------------------------------
-14. is_front_page()
+5. dynamic_sidebar()
 --------------------------------------------------
-Definition:
-Checks whether the currently displayed page is
-the site's front page.
+What it is (Simple):
+dynamic_sidebar() shows the WIDGETS
+inside a registered sidebar.
+
+Where it is used:
+sidebar.php
 
 Syntax:
-is_front_page();
+dynamic_sidebar( $id );
 
-Why needed:
-Conditional layouts.
+Example:
+dynamic_sidebar('sidebar-1');
 
---------------------------------------------------
-15. is_admin()
---------------------------------------------------
-Definition:
-Determines whether the current request is being
-executed inside the WordPress admin dashboard.
-
-Syntax:
-is_admin();
-
-Why needed:
-Separate admin and frontend logic.
+How it works:
+register_sidebar() → creates widget area
+dynamic_sidebar() → prints widgets
 
 --------------------------------------------------
-16. have_posts()
+SIDEBAR FLOW (IMPORTANT)
 --------------------------------------------------
-Definition:
-have_posts() checks whether posts exist in the
-current WordPress query.
+functions.php → register_sidebar()
+theme file    → get_sidebar()
+sidebar.php   → dynamic_sidebar()
 
-Syntax:
-have_posts();
-
-Why needed:
-Controls content loops.
+All three are REQUIRED.
 
 --------------------------------------------------
-17. the_post()
+6. is_active_sidebar()
 --------------------------------------------------
-Definition:
-the_post() sets up global post data for the
-current loop iteration.
-
-Syntax:
-the_post();
+What it is (Simple):
+Checks if a sidebar has widgets or not.
 
 Why needed:
-Required for template tags.
-
---------------------------------------------------
-18. get_footer()
---------------------------------------------------
-Definition:
-get_footer() loads the footer template file.
+Avoid empty sidebar space.
 
 Syntax:
-get_footer( $name );
+is_active_sidebar( $id );
 
-Why needed:
-Reusable page structure.
+Return:
+true / false
+
+Example:
+if (is_active_sidebar('sidebar-1')) {
+  dynamic_sidebar('sidebar-1');
+}
 
 --------------------------------------------------
-19. dynamic_sidebar()
+7. add_menu_page()
 --------------------------------------------------
-Definition:
-dynamic_sidebar() outputs widgets assigned to a
-registered sidebar.
+What it is (Simple):
+Creates a NEW MAIN MENU in WordPress admin panel.
+
+Example:
+A new menu like:
+"My Plugin" in left sidebar
+
+Where it is used:
+Plugin file
 
 Syntax:
-dynamic_sidebar( $index );
+add_menu_page(
+  $page_title,
+  $menu_title,
+  $capability,
+  $menu_slug,
+  $callback,
+  $icon,
+  $position
+);
 
-Why needed:
-Displays widget content.
+Example:
+add_menu_page(
+  'My Plugin Page',
+  'My Plugin',
+  'manage_options',
+  'my-plugin',
+  'my_plugin_page'
+);
+
+What it creates:
+Admin Left Menu → My Plugin
 
 --------------------------------------------------
-20. add_action()
+8. add_submenu_page()
 --------------------------------------------------
-Definition:
-add_action() attaches a function to a specific
-WordPress event (hook). It allows extending
-WordPress behavior without editing core files.
+What it is (Simple):
+Adds a SUB MENU under an existing admin menu.
+
+Used when:
+You want multiple pages inside plugin.
 
 Syntax:
-add_action( $hook, $callback, $priority, $accepted_args );
+add_submenu_page(
+  $parent_slug,
+  $page_title,
+  $menu_title,
+  $capability,
+  $menu_slug,
+  $callback
+);
 
-Why needed:
-Core of WordPress extensibility.
+Example:
+add_submenu_page(
+  'my-plugin',
+  'Settings',
+  'Settings',
+  'manage_options',
+  'my-plugin-settings',
+  'my_plugin_settings_page'
+);
 
---------------------------------------------------
-21. add_filter()
---------------------------------------------------
-Definition:
-add_filter() modifies data before it is output
-or saved. Unlike actions, filters must return
-a value.
-
-Syntax:
-add_filter( $hook, $callback, $priority, $accepted_args );
-
-Why needed:
-Customize output safely.
-
---------------------------------------------------
-22. wp_enqueue_style()
---------------------------------------------------
-Definition:
-Registers and loads CSS files in a controlled
-manner, preventing duplication and conflicts.
-
-Syntax:
-wp_enqueue_style( $handle, $src, $deps, $ver, $media );
-
-Why needed:
-Proper asset management.
+Result:
+My Plugin
+  └── Settings
 
 --------------------------------------------------
-23. wp_enqueue_script()
+ADMIN MENU FLOW (IMPORTANT)
 --------------------------------------------------
-Definition:
-Safely loads JavaScript files with dependency
-management and footer placement.
-
-Syntax:
-wp_enqueue_script( $handle, $src, $deps, $ver, $in_footer );
-
-Why needed:
-Avoid JS conflicts.
+add_menu_page()    → Parent menu
+add_submenu_page() → Child menu
 
 --------------------------------------------------
-24. get_header()
+SUMMARY (VERY IMPORTANT)
 --------------------------------------------------
-Definition:
-Loads the header template file.
+Menus (Frontend):
+register_nav_menu() → define place
+wp_nav_menu()       → show menu
 
-Syntax:
-get_header( $name );
+Sidebars:
+register_sidebar()  → create widget area
+get_sidebar()       → load sidebar file
+dynamic_sidebar()   → show widgets
+is_active_sidebar() → check widgets
 
-Why needed:
-Consistent page layout.
-
---------------------------------------------------
-25. the_title()
---------------------------------------------------
-Definition:
-Outputs the title of the current post inside
-the WordPress loop.
-
-Syntax:
-the_title( $before, $after, $echo );
-
---------------------------------------------------
-26. the_content()
---------------------------------------------------
-Definition:
-Displays the main content of the post, including
-shortcodes and formatting.
-
-Syntax:
-the_content( $more_link_text, $strip_teaser );
-
---------------------------------------------------
-27. get_the_ID()
---------------------------------------------------
-Definition:
-Returns the numeric ID of the current post.
-
-Syntax:
-get_the_ID();
-
---------------------------------------------------
-28. wp_die()
---------------------------------------------------
-Definition:
-Stops WordPress execution safely and displays
-an error message.
-
-Syntax:
-wp_die( $message, $title, $args );
-
---------------------------------------------------
-29. wp_redirect()
---------------------------------------------------
-Definition:
-Redirects users to another URL using HTTP headers.
-
-Syntax:
-wp_redirect( $location, $status );
-
---------------------------------------------------
-30. admin_url()
---------------------------------------------------
-Definition:
-Returns a URL pointing to the WordPress admin
-dashboard.
-
-Syntax:
-admin_url( $path, $scheme );
-
---------------------------------------------------
-31. esc_html()
---------------------------------------------------
-Definition:
-Escapes HTML output to prevent XSS attacks.
-
-Syntax:
-esc_html( $text );
-
---------------------------------------------------
-32. esc_url()
---------------------------------------------------
-Definition:
-Sanitizes URLs before output.
-
-Syntax:
-esc_url( $url );
-
---------------------------------------------------
-33. get_option()
---------------------------------------------------
-Definition:
-Fetches a stored option value from wp_options.
-
-Syntax:
-get_option( $option, $default );
-
---------------------------------------------------
-34. wp_create_nonce()
---------------------------------------------------
-Definition:
-Generates a security token to protect forms and
-URLs from unauthorized actions.
-
-Syntax:
-wp_create_nonce( $action );
-
---------------------------------------------------
-35. check_admin_referer()
---------------------------------------------------
-Definition:
-Validates nonce values for secure admin actions.
-
-Syntax:
-check_admin_referer( $action, $query_arg );
-
---------------------------------------------------
-36. current_user_can()
---------------------------------------------------
-Definition:
-Checks if the current user has a specific
-capability or permission.
-
-Syntax:
-current_user_can( $capability );
-
---------------------------------------------------
-37. wp_insert_post()
---------------------------------------------------
-Definition:
-Programmatically creates or updates posts.
-
-Syntax:
-wp_insert_post( $postarr );
-
---------------------------------------------------
-38. get_posts()
---------------------------------------------------
-Definition:
-Retrieves posts using simplified query arguments.
-
-Syntax:
-get_posts( $args );
-
---------------------------------------------------
-39. wp_get_current_user()
---------------------------------------------------
-Definition:
-Returns the currently logged-in user's data.
-
-Syntax:
-wp_get_current_user();
-
---------------------------------------------------
-40. wp_logout()
---------------------------------------------------
-Definition:
-Logs out the current user and destroys session.
-
-Syntax:
-wp_logout();
+Admin Panel:
+add_menu_page()     → main admin menu
+add_submenu_page()  → sub admin menu
 
 ==================================================
 END OF FILE
@@ -496,114 +272,72 @@ END OF FILE
 
 
 
+==================================================
+TRY WORDPRESS MENUS, SIDEBARS & ADMIN PAGES
+USING ONLY A BASIC THEME (4–5 FILES)
+==================================================
 
-
-
-
-
-
+ASSUMPTION:
+You already have a theme folder with:
+- style.css
+- functions.php
+- index.php
+- header.php
+- footer.php
+(optional: sidebar.php)
 
 ==================================================
-WORDPRESS FUNCTION TESTING GUIDE (BEGINNER)
+FILES YOU WILL USE
 ==================================================
-Goal:
-Safely test WordPress core functions using
-1) One Practice Plugin
-2) One Practice Theme
+1) functions.php  → register things
+2) header.php     → show menu
+3) sidebar.php    → show widgets
+4) index.php      → load sidebar
+5) plugin file    → admin menu (required)
 
-Required:
-- WordPress installed
-- VS Code
-- Admin access
+==================================================
+STEP 1: BASIC THEME FILE STRUCTURE
+==================================================
+your-theme/
+├── style.css
+├── functions.php
+├── header.php
+├── footer.php
+├── index.php
+└── sidebar.php
 
+==================================================
+STEP 2: REGISTER MENU (functions.php)
+==================================================
+FUNCTION: register_nav_menu
+
+WHY:
+Tells WordPress that your theme supports menus.
+
+CODE (functions.php):
 --------------------------------------------------
-SECTION 1: FOLDER LOCATIONS
---------------------------------------------------
-Plugins Path:
-wp-content/plugins/
-
-Themes Path:
-wp-content/themes/
-
-Rule:
-Admin / DB / Hooks  → Plugin
-UI / Loop / Header → Theme
-
---------------------------------------------------
-SECTION 2: CREATE PRACTICE PLUGIN
---------------------------------------------------
-Path:
-wp-content/plugins/wp-test-functions/
-
-File:
-wp-test-functions.php
-
------------------- CODE ------------------
 <?php
-/*
-Plugin Name: WP Test Functions
-Description: Test WordPress core functions
-Version: 1.0
-Author: Beginner
-*/
 
-if (!defined('ABSPATH')) exit;
-
-/* add_option */
-register_activation_hook(__FILE__, function () {
-    add_option('my_test_option', 'Initial Value');
+add_action('after_setup_theme', function () {
+    register_nav_menu('primary', 'Primary Menu');
 });
 
-/* update_option */
-add_action('init', function () {
-    update_option('my_test_option', 'Updated Value');
-});
-
-/* delete_option */
-register_uninstall_hook(__FILE__, function () {
-    delete_option('my_test_option');
-});
-
-/* is_admin */
-add_action('admin_notices', function () {
-    if (is_admin()) {
-        echo '<div class="notice notice-success">
-              <p>Admin area detected</p>
-              </div>';
-    }
-});
-
-/* add_action example */
-add_action('wp_footer', function () {
-    echo '<p style="text-align:center;">Footer hook from plugin</p>';
-});
 --------------------------------------------------
 
-Activate:
-Admin → Plugins → Activate "WP Test Functions"
+WHAT TO CHECK:
+Admin → Appearance → Menus
+You should see "Primary Menu" location.
 
-Functions Tested:
-add_option, update_option, delete_option,
-is_admin, add_action
+==================================================
+STEP 3: SHOW MENU (header.php)
+==================================================
+FUNCTION: wp_nav_menu
 
---------------------------------------------------
-SECTION 3: THEME SETUP
---------------------------------------------------
-Theme Path:
-wp-content/themes/your-theme/
+WHY:
+Displays the menu on website.
 
-Files to edit:
-header.php
-footer.php
-functions.php
-index.php
-sidebar.php
-
+CODE (header.php):
 --------------------------------------------------
-SECTION 4: TEST wp_head & wp_footer
---------------------------------------------------
-header.php
-------------------
 <!DOCTYPE html>
 <html>
 <head>
@@ -611,143 +345,176 @@ header.php
 </head>
 <body>
 
-footer.php
-------------------
-<?php wp_footer(); ?>
-</body>
-</html>
+<h1>My Site</h1>
 
-Functions Tested:
-wp_head, wp_footer
-
---------------------------------------------------
-SECTION 5: TEST MENU & SIDEBAR
---------------------------------------------------
-functions.php
-------------------
 <?php
+wp_nav_menu([
+  'theme_location' => 'primary'
+]);
+?>
 
-/* Menu */
-add_action('after_setup_theme', function () {
-    register_nav_menu('primary', 'Primary Menu');
-});
+--------------------------------------------------
 
-/* Sidebar */
+NOW DO THIS:
+1) Admin → Appearance → Menus
+2) Create a menu
+3) Assign it to "Primary Menu"
+4) Visit site → menu will appear
+
+==================================================
+STEP 4: REGISTER SIDEBAR (functions.php)
+==================================================
+FUNCTION: register_sidebar
+
+WHY:
+Creates widget area in admin panel.
+
+CODE (functions.php):
+--------------------------------------------------
 add_action('widgets_init', function () {
     register_sidebar([
         'name' => 'Main Sidebar',
         'id'   => 'sidebar-1'
     ]);
 });
+--------------------------------------------------
 
-index.php
-------------------
+CHECK:
+Admin → Appearance → Widgets
+You will see "Main Sidebar"
+
+==================================================
+STEP 5: LOAD SIDEBAR FILE (index.php)
+==================================================
+FUNCTION: get_sidebar
+
+WHY:
+Loads sidebar.php file into page.
+
+CODE (index.php):
+--------------------------------------------------
 <?php get_header(); ?>
 
-<?php wp_nav_menu(['theme_location' => 'primary']); ?>
+<div style="display:flex; gap:20px;">
 
-<?php get_sidebar(); ?>
+  <div style="width:70%;">
+    <h2>Main Content</h2>
+    <?php
+    if (have_posts()) {
+        while (have_posts()) {
+            the_post();
+            the_title('<h3>', '</h3>');
+            the_content();
+        }
+    }
+    ?>
+  </div>
+
+  <div style="width:30%;">
+    <?php get_sidebar(); ?>
+  </div>
+
+</div>
 
 <?php get_footer(); ?>
+--------------------------------------------------
 
-sidebar.php
-------------------
-<?php dynamic_sidebar('sidebar-1'); ?>
+==================================================
+STEP 6: SHOW WIDGETS (sidebar.php)
+==================================================
+FUNCTIONS:
+- is_active_sidebar
+- dynamic_sidebar
 
-Functions Tested:
+WHY:
+Show widgets ONLY if sidebar has widgets.
+
+CODE (sidebar.php):
+--------------------------------------------------
+<?php
+if (is_active_sidebar('sidebar-1')) {
+    dynamic_sidebar('sidebar-1');
+} else {
+    echo '<p>No widgets added yet</p>';
+}
+?>
+--------------------------------------------------
+
+NOW DO THIS:
+Admin → Appearance → Widgets
+Add widgets to "Main Sidebar"
+
+==================================================
+SIDEBAR FLOW (REMEMBER THIS)
+==================================================
+functions.php  → register_sidebar
+index.php      → get_sidebar
+sidebar.php    → dynamic_sidebar
+
+==================================================
+STEP 7: ADMIN MENU (PLUGIN REQUIRED)
+==================================================
+IMPORTANT:
+Admin menus CANNOT be created from theme.
+You MUST use a plugin.
+
+==================================================
+CREATE PLUGIN FOR ADMIN MENU
+==================================================
+PATH:
+wp-content/plugins/my-test-admin/
+
+FILE:
+my-test-admin.php
+
+CODE:
+--------------------------------------------------
+<?php
+/*
+Plugin Name: Test Admin Menu
+*/
+
+add_action('admin_menu', function () {
+    add_menu_page(
+        'My Admin Page',
+        'My Menu',
+        'manage_options',
+        'my-menu',
+        'my_menu_page'
+    );
+});
+
+function my_menu_page() {
+    echo '<h1>Hello from Admin Page</h1>';
+}
+--------------------------------------------------
+
+ACTIVATE PLUGIN:
+Admin → Plugins → Activate
+
+CHECK:
+Left admin menu → "My Menu"
+
+==================================================
+FUNCTIONS YOU SUCCESSFULLY TESTED
+==================================================
+register_nav_menu
 wp_nav_menu
 register_sidebar
 get_sidebar
 dynamic_sidebar
+is_active_sidebar
+add_menu_page
 
---------------------------------------------------
-SECTION 6: TEST WORDPRESS LOOP
---------------------------------------------------
-index.php
-------------------
-<?php if (have_posts()) : ?>
-  <?php while (have_posts()) : the_post(); ?>
-    <h2><?php the_title(); ?></h2>
-    <p><?php the_content(); ?></p>
-  <?php endwhile; ?>
-<?php else : ?>
-  <p>No posts found</p>
-<?php endif; ?>
+==================================================
+IMPORTANT BEGINNER TIPS
+==================================================
+1) Theme = frontend UI
+2) Plugin = admin logic
+3) Menu needs BOTH register + display
+4) Sidebar needs ALL 3 steps
+5) Admin menu NEVER goes in theme
 
-Functions Tested:
-have_posts
-the_post
-
---------------------------------------------------
-SECTION 7: TEST URL FUNCTIONS
---------------------------------------------------
-index.php
-------------------
-<p>Home URL: <?php echo home_url(); ?></p>
-<p>Site URL: <?php echo site_url(); ?></p>
-
-Functions Tested:
-home_url
-site_url
-
---------------------------------------------------
-SECTION 8: TEST TEMPLATE FUNCTIONS
---------------------------------------------------
-index.php
-------------------
-<?php get_template_part('template-parts/content'); ?>
-<?php get_footer(); ?>
-
-template-parts/content.php
-------------------
-<p>This is template part content</p>
-
-Functions Tested:
-get_template_part
-get_footer
-
---------------------------------------------------
-SECTION 9: TEST SEARCH FORM
---------------------------------------------------
-index.php
-------------------
-<?php get_search_form(); ?>
-
-Functions Tested:
-get_search_form
-
---------------------------------------------------
-SECTION 10: TEST FRONT PAGE CHECK
---------------------------------------------------
-index.php
-------------------
-<?php
-if (is_front_page()) {
-    echo '<h1>This is Front Page</h1>';
-}
-?>
-
-Functions Tested:
-is_front_page
-
---------------------------------------------------
-SECTION 11: WHAT YOU HAVE LEARNED
---------------------------------------------------
-✔ Plugin vs Theme usage
-✔ WordPress hooks system
-✔ Options API
-✔ Loop system
-✔ Menus & Widgets
-✔ Template hierarchy
-
---------------------------------------------------
-SECTION 12: SAFE PRACTICE TIPS
---------------------------------------------------
-- Never edit core files
-- Use practice plugin only
-- Test one function at a time
-- Use echo to confirm output
-
---------------------------------------------------
+==================================================
 END OF FILE
 ==================================================
