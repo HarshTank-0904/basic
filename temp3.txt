@@ -1,263 +1,181 @@
 
+INSTRUCTION:
+
+SECTION A: FILTER TESTCASES
+
+1. What if we add two filters on the same hook:
+   - Filter A converts content to UPPERCASE
+   - Filter B converts content to LOWERCASE
+   Which output will finally appear?
 
 
-==================================================
-WORDPRESS CORE CONCEPTS – SHORT BUT COMPLETE GUIDE
-==================================================
+2. What if we add two filters:
+   - Both filters append text to the content
+   What will the final content look like?
 
---------------------------------------------------
-1. What is Global Options?
---------------------------------------------------
-Definition:
-Global options are site-wide settings used by
-WordPress, themes, and plugins.
 
-Where stored:
-Database table → wp_options
+3. What if two filters have the SAME priority?
+   In which order will they execute?
 
-Examples:
-- siteurl
-- home
-- blogname
-- admin_email
-- plugin settings
 
-How accessed:
-get_option()
-update_option()
+4. What if one filter does NOT return anything?
+   What happens to the content?
 
-Why needed:
-- Persistent configuration
-- Shared across entire site
 
---------------------------------------------------
-2. What is a Post?
---------------------------------------------------
-Definition:
-A post is dynamic content used mainly for blogs,
-news, or updates.
+5. What if a filter returns completely new content
+   and ignores the original content?
 
-Where stored:
-Database table → wp_posts
 
-Related tables:
-- wp_postmeta (extra data)
-- wp_terms (categories/tags)
+6. What if a filter is removed BEFORE the hook runs?
 
-Post type value:
-post
 
-Why needed:
-- Time-based content
-- Supports categories & tags
+7. What if a filter is removed AFTER it already ran?
 
---------------------------------------------------
-3. What is a Page?
---------------------------------------------------
-Definition:
-A page is static content (About, Contact).
 
-Where stored:
-Database table → wp_posts
+8. What if the same filter function is added twice?
 
-Post type value:
-page
 
-Key difference from post:
-- No categories/tags by default
-- Not date-based
+9. What if a filter contains a condition like
+   is_single() or is_page()?
 
---------------------------------------------------
-4. What is Taxonomy?
---------------------------------------------------
-Definition:
-Taxonomy is a system to classify content.
 
-Types:
-- Category
-- Tag
-- Custom taxonomy
+10. What if a filter echoes text instead of returning it?
 
-Where stored:
-- wp_terms
-- wp_term_taxonomy
-- wp_term_relationships
 
-Example:
-Category → News
-Tag → WordPress
+11. What if a filter returns a wrong data type
+    (array instead of string)?
 
-Why needed:
-- Organize content
-- Improve navigation & SEO
 
---------------------------------------------------
-5. Default User Roles
---------------------------------------------------
-Roles:
-- Administrator → Full access
-- Editor → Manage all posts/pages
-- Author → Own posts only
-- Contributor → Write, no publish
-- Subscriber → Read-only
+12. What if two different plugins hook the same filter?
 
-Where stored:
-- wp_users
-- wp_usermeta
 
---------------------------------------------------
-6. What is post_meta & user_meta?
---------------------------------------------------
-Definition:
-Metadata stores extra information.
+13. What if filter A runs first and filter B runs later,
+    but filter B returns only the original content?
 
-post_meta:
-Extra data for posts/pages
-Table → wp_postmeta
 
-Examples:
-- custom fields
-- featured flags
+14. What if the filter hook is applied multiple times
+    on the same page?
 
-user_meta:
-Extra data for users
-Table → wp_usermeta
 
-Examples:
-- phone number
-- profile image
+15. What if a filter calls apply_filters()
+    for the SAME hook inside itself?
 
-Functions:
-get_post_meta()
-get_user_meta()
 
---------------------------------------------------
-7. What is Text Domain?
---------------------------------------------------
-Definition:
-Text domain connects strings to translations.
+16. What if a filter is added dynamically
+    inside another filter?
 
-Used in:
-Themes & Plugins (i18n)
 
-Example:
-__('Hello', 'my-plugin');
+17. What if accepted_args is set incorrectly?
 
-Where defined:
-- Plugin header
-- Theme style.css
 
-Why needed:
-- Multi-language support
+18. What if a filter modifies global variables?
 
---------------------------------------------------
-8. What is Slug?
---------------------------------------------------
-Definition:
-Slug is URL-friendly identifier.
 
-Example:
-Post title → My First Post
-Slug → my-first-post
+19. What if the filter priority is very high (e.g. 999)?
 
-Where stored:
-wp_posts → post_name
 
-Why needed:
-- SEO-friendly URLs
-- Unique identifiers
+20. What if remove_filter() is called
+    with wrong priority or callback?
 
---------------------------------------------------
-9. What is Multisite?
---------------------------------------------------
-Definition:
-Multisite allows multiple sites from one
-WordPress installation.
 
-Enabled via:
-wp-config.php
+SECTION B: ACTION TESTCASES
 
-Example:
-network of sites
+21. What if two actions are hooked to the same action hook?
 
-Tables:
-- wp_blogs
-- wp_site
-- wp_sitemeta
 
-Why needed:
-- Manage multiple sites centrally
+22. What if two actions have different priorities?
 
---------------------------------------------------
-10. Single Site vs Multisite
---------------------------------------------------
-Single Site:
-- One website
-- Simple setup
-- Separate installs needed
 
-Multisite:
-- Multiple sites
-- Shared core files
-- Centralized user management
+23. What if both actions echo output?
 
-Use case:
-Single → Blogs, portfolios
-Multisite → Universities, networks
 
---------------------------------------------------
-11. What is Permalink?
---------------------------------------------------
-Definition:
-Permanent URL structure for content.
+24. What if an action returns a value?
 
-Example:
-https://site.com/blog/my-post/
 
-Where set:
-Admin → Settings → Permalinks
+25. What if the same action function is added twice?
 
---------------------------------------------------
-12. Permalink vs URL
---------------------------------------------------
-URL:
-Any web address
-Example: https://site.com/?p=123
 
-Permalink:
-SEO-friendly permanent link
-Example: /my-post/
+26. What if an action is removed BEFORE the hook runs?
 
-Key difference:
-Permalink is a type of URL.
 
---------------------------------------------------
-13. How to Handle SQL in WordPress
---------------------------------------------------
-Best Practice:
-NEVER write raw SQL directly.
+27. What if an action is removed AFTER it already ran?
 
-Use:
-- WP_Query
-- get_posts()
-- get_option()
-- $wpdb (safe queries)
 
-Example ($wpdb):
-global $wpdb;
-$results = $wpdb->get_results(
-  "SELECT * FROM {$wpdb->posts}"
-);
+28. What if an action is added conditionally?
 
-Security:
-- Prepared statements
-- Nonces
-- Escaping
 
-Why needed:
-- Prevent SQL injection
-- Maintain compatibility
+29. What if two plugins hook the same action?
 
-==================================================
-END OF FILE
-==================================================
+
+30. What if an action triggers another action?
+
+
+31. What if an action is added inside another action?
+
+
+32. What if an action outputs HTML before headers are sent?
+
+
+33. What if an action runs multiple times on one page?
+
+
+34. What if an action has very high priority (e.g. 999)?
+
+
+35. What if an action uses exit() or die()?
+
+
+36. What if an action is added to the WRONG hook?
+
+
+37. What if an action both echoes output
+    and performs a redirect?
+
+
+38. What if an action depends on data
+    from another action?
+
+
+39. What if an action is added in both
+    theme and plugin?
+
+
+40. What if add_action() is called inside a loop?
+
+
+SECTION C: MIXED (FILTER + ACTION)
+
+41. What if an action adds a filter dynamically?
+
+
+42. What if a filter adds an action dynamically?
+
+
+43. What if remove_action() is called inside a filter?
+
+
+44. What if remove_filter() is called inside an action?
+
+
+45. What if both filter and action hook
+    the same hook name?
+
+
+46. What if an action runs before a filter
+    modifies the same data?
+
+
+47. What if a filter depends on something
+    created by an action?
+
+
+48. What if priority conflicts between
+    action and filter logic?
+
+
+49. What if a filter modifies content
+    but an action outputs HTML around it?
+
+
+50. What if hooks are added after the hook
+    has already fired?
