@@ -1,519 +1,352 @@
 
 
---------------------------------------------------
-1. register_nav_menu()
---------------------------------------------------
-What it is (Simple):
-register_nav_menu() tells WordPress:
-"Hey WordPress, my theme has a menu location."
-
-It DOES NOT show anything on the website.
-It only registers a PLACE where a menu can go.
-
-Why it exists:
-WordPress needs to know where menus are allowed
-(header, footer, sidebar, etc.).
-
-Where it is used:
-functions.php (Theme)
-
-Syntax:
-register_nav_menu( $location, $description );
-
-Parameters:
-$location     → Internal name (used in code)
-$description  → Name shown in Admin Dashboard
-
-Example:
-register_nav_menu('primary', 'Main Header Menu');
-
-What happens after this:
-Admin → Appearance → Menus
-You will see "Main Header Menu" location.
-
---------------------------------------------------
-2. wp_nav_menu()
---------------------------------------------------
-What it is (Simple):
-wp_nav_menu() DISPLAYS the menu on the website.
-
-Think like this:
-register_nav_menu() = Register menu location
-wp_nav_menu()       = Show menu on screen
-
-Where it is used:
-header.php, footer.php, sidebar.php
-
-Syntax:
-wp_nav_menu( $args );
-
-Important Parameters:
-theme_location → Menu location name
-menu_class     → CSS class
-container      → HTML wrapper
-
-Example:
-wp_nav_menu([
-  'theme_location' => 'primary',
-  'menu_class' => 'main-menu'
-]);
-
-How it works:
-1) You register menu location
-2) Admin assigns a menu
-3) wp_nav_menu prints it
-
---------------------------------------------------
-MENU FLOW (IMPORTANT)
---------------------------------------------------
-Theme → register_nav_menu()
-Admin → Create menu
-Theme → wp_nav_menu()
-
-If any step is missing → menu will NOT show.
-
---------------------------------------------------
-3. register_sidebar()
---------------------------------------------------
-What it is (Simple):
-register_sidebar() creates a WIDGET AREA.
-
-Widget area = place where widgets can be added
-from admin panel (sidebar, footer, etc.)
-
-Where it is used:
-functions.php
-
-Syntax:
-register_sidebar( $args );
-
-Important Parameters:
-name → Visible name in admin
-id   → Unique ID (used in code)
-
-Example:
-register_sidebar([
-  'name' => 'Main Sidebar',
-  'id'   => 'sidebar-1'
-]);
-
-What happens after this:
-Admin → Appearance → Widgets
-You will see "Main Sidebar"
-
---------------------------------------------------
-4. get_sidebar()
---------------------------------------------------
-What it is (Simple):
-get_sidebar() loads the sidebar FILE.
-
-It includes:
-sidebar.php
-or sidebar-name.php
-
-Where it is used:
-index.php, page.php, single.php
-
-Syntax:
-get_sidebar( $name );
-
-Example:
-get_sidebar();        → loads sidebar.php
-get_sidebar('shop'); → loads sidebar-shop.php
-
-IMPORTANT:
-get_sidebar() does NOT show widgets.
-It only loads the file.
-
---------------------------------------------------
-5. dynamic_sidebar()
---------------------------------------------------
-What it is (Simple):
-dynamic_sidebar() shows the WIDGETS
-inside a registered sidebar.
-
-Where it is used:
-sidebar.php
-
-Syntax:
-dynamic_sidebar( $id );
-
-Example:
-dynamic_sidebar('sidebar-1');
-
-How it works:
-register_sidebar() → creates widget area
-dynamic_sidebar() → prints widgets
-
---------------------------------------------------
-SIDEBAR FLOW (IMPORTANT)
---------------------------------------------------
-functions.php → register_sidebar()
-theme file    → get_sidebar()
-sidebar.php   → dynamic_sidebar()
-
-All three are REQUIRED.
-
---------------------------------------------------
-6. is_active_sidebar()
---------------------------------------------------
-What it is (Simple):
-Checks if a sidebar has widgets or not.
-
-Why needed:
-Avoid empty sidebar space.
-
-Syntax:
-is_active_sidebar( $id );
-
-Return:
-true / false
-
-Example:
-if (is_active_sidebar('sidebar-1')) {
-  dynamic_sidebar('sidebar-1');
-}
-
---------------------------------------------------
-7. add_menu_page()
---------------------------------------------------
-What it is (Simple):
-Creates a NEW MAIN MENU in WordPress admin panel.
-
-Example:
-A new menu like:
-"My Plugin" in left sidebar
-
-Where it is used:
-Plugin file
-
-Syntax:
-add_menu_page(
-  $page_title,
-  $menu_title,
-  $capability,
-  $menu_slug,
-  $callback,
-  $icon,
-  $position
-);
-
-Example:
-add_menu_page(
-  'My Plugin Page',
-  'My Plugin',
-  'manage_options',
-  'my-plugin',
-  'my_plugin_page'
-);
-
-What it creates:
-Admin Left Menu → My Plugin
-
---------------------------------------------------
-8. add_submenu_page()
---------------------------------------------------
-What it is (Simple):
-Adds a SUB MENU under an existing admin menu.
-
-Used when:
-You want multiple pages inside plugin.
-
-Syntax:
-add_submenu_page(
-  $parent_slug,
-  $page_title,
-  $menu_title,
-  $capability,
-  $menu_slug,
-  $callback
-);
-
-Example:
-add_submenu_page(
-  'my-plugin',
-  'Settings',
-  'Settings',
-  'manage_options',
-  'my-plugin-settings',
-  'my_plugin_settings_page'
-);
-
-Result:
-My Plugin
-  └── Settings
-
---------------------------------------------------
-ADMIN MENU FLOW (IMPORTANT)
---------------------------------------------------
-add_menu_page()    → Parent menu
-add_submenu_page() → Child menu
-
---------------------------------------------------
-SUMMARY (VERY IMPORTANT)
---------------------------------------------------
-Menus (Frontend):
-register_nav_menu() → define place
-wp_nav_menu()       → show menu
-
-Sidebars:
-register_sidebar()  → create widget area
-get_sidebar()       → load sidebar file
-dynamic_sidebar()   → show widgets
-is_active_sidebar() → check widgets
-
-Admin Panel:
-add_menu_page()     → main admin menu
-add_submenu_page()  → sub admin menu
-
 ==================================================
-END OF FILE
+WORDPRESS CORE FUNCTIONS – PRACTICE TESTCASES
+(NO ANSWERS – YOU PREDICT OUTPUT)
 ==================================================
 
-
-
-==================================================
-TRY WORDPRESS MENUS, SIDEBARS & ADMIN PAGES
-USING ONLY A BASIC THEME (4–5 FILES)
-==================================================
-
-ASSUMPTION:
-You already have a theme folder with:
-- style.css
-- functions.php
-- index.php
-- header.php
-- footer.php
-(optional: sidebar.php)
-
-==================================================
-FILES YOU WILL USE
-==================================================
-1) functions.php  → register things
-2) header.php     → show menu
-3) sidebar.php    → show widgets
-4) index.php      → load sidebar
-5) plugin file    → admin menu (required)
-
-==================================================
-STEP 1: BASIC THEME FILE STRUCTURE
-==================================================
-your-theme/
-├── style.css
-├── functions.php
-├── header.php
-├── footer.php
-├── index.php
-└── sidebar.php
-
-==================================================
-STEP 2: REGISTER MENU (functions.php)
-==================================================
-FUNCTION: register_nav_menu
-
-WHY:
-Tells WordPress that your theme supports menus.
-
-CODE (functions.php):
+INSTRUCTIONS
 --------------------------------------------------
-<?php
+For every testcase:
+1) Write test code
+2) Predict result
+3) Run in WordPress
+4) Observe actual behavior
 
-add_action('after_setup_theme', function () {
-    register_nav_menu('primary', 'Primary Menu');
-});
+==================================================
+SECTION 1: OPTIONS API
+(add_option, update_option, delete_option)
+==================================================
+
+1. What if add_option() is called twice
+   with the SAME option name?
 
 --------------------------------------------------
 
-WHAT TO CHECK:
-Admin → Appearance → Menus
-You should see "Primary Menu" location.
-
-==================================================
-STEP 3: SHOW MENU (header.php)
-==================================================
-FUNCTION: wp_nav_menu
-
-WHY:
-Displays the menu on website.
-
-CODE (header.php):
---------------------------------------------------
-<!DOCTYPE html>
-<html>
-<head>
-<?php wp_head(); ?>
-</head>
-<body>
-
-<h1>My Site</h1>
-
-<?php
-wp_nav_menu([
-  'theme_location' => 'primary'
-]);
-?>
+2. What if update_option() is called
+   on an option that does NOT exist?
 
 --------------------------------------------------
 
-NOW DO THIS:
-1) Admin → Appearance → Menus
-2) Create a menu
-3) Assign it to "Primary Menu"
-4) Visit site → menu will appear
+3. What if delete_option() is called
+   on a non-existing option?
 
-==================================================
-STEP 4: REGISTER SIDEBAR (functions.php)
-==================================================
-FUNCTION: register_sidebar
-
-WHY:
-Creates widget area in admin panel.
-
-CODE (functions.php):
---------------------------------------------------
-add_action('widgets_init', function () {
-    register_sidebar([
-        'name' => 'Main Sidebar',
-        'id'   => 'sidebar-1'
-    ]);
-});
 --------------------------------------------------
 
-CHECK:
-Admin → Appearance → Widgets
-You will see "Main Sidebar"
+4. What if add_option() is called with
+   autoload = "no"?
 
-==================================================
-STEP 5: LOAD SIDEBAR FILE (index.php)
-==================================================
-FUNCTION: get_sidebar
-
-WHY:
-Loads sidebar.php file into page.
-
-CODE (index.php):
 --------------------------------------------------
-<?php get_header(); ?>
 
-<div style="display:flex; gap:20px;">
+5. What if update_option() updates
+   the option with the SAME value?
 
-  <div style="width:70%;">
-    <h2>Main Content</h2>
-    <?php
-    if (have_posts()) {
-        while (have_posts()) {
-            the_post();
-            the_title('<h3>', '</h3>');
-            the_content();
-        }
-    }
-    ?>
-  </div>
-
-  <div style="width:30%;">
-    <?php get_sidebar(); ?>
-  </div>
-
-</div>
-
-<?php get_footer(); ?>
 --------------------------------------------------
 
 ==================================================
-STEP 6: SHOW WIDGETS (sidebar.php)
+SECTION 2: THEME HEAD & FOOTER
+(wp_head, wp_footer)
 ==================================================
-FUNCTIONS:
-- is_active_sidebar
-- dynamic_sidebar
 
-WHY:
-Show widgets ONLY if sidebar has widgets.
+6. What if wp_head() is missing
+   from header.php?
 
-CODE (sidebar.php):
---------------------------------------------------
-<?php
-if (is_active_sidebar('sidebar-1')) {
-    dynamic_sidebar('sidebar-1');
-} else {
-    echo '<p>No widgets added yet</p>';
-}
-?>
 --------------------------------------------------
 
-NOW DO THIS:
-Admin → Appearance → Widgets
-Add widgets to "Main Sidebar"
+7. What if wp_footer() is missing
+   from footer.php?
 
-==================================================
-SIDEBAR FLOW (REMEMBER THIS)
-==================================================
-functions.php  → register_sidebar
-index.php      → get_sidebar
-sidebar.php    → dynamic_sidebar
-
-==================================================
-STEP 7: ADMIN MENU (PLUGIN REQUIRED)
-==================================================
-IMPORTANT:
-Admin menus CANNOT be created from theme.
-You MUST use a plugin.
-
-==================================================
-CREATE PLUGIN FOR ADMIN MENU
-==================================================
-PATH:
-wp-content/plugins/my-test-admin/
-
-FILE:
-my-test-admin.php
-
-CODE:
---------------------------------------------------
-<?php
-/*
-Plugin Name: Test Admin Menu
-*/
-
-add_action('admin_menu', function () {
-    add_menu_page(
-        'My Admin Page',
-        'My Menu',
-        'manage_options',
-        'my-menu',
-        'my_menu_page'
-    );
-});
-
-function my_menu_page() {
-    echo '<h1>Hello from Admin Page</h1>';
-}
 --------------------------------------------------
 
-ACTIVATE PLUGIN:
-Admin → Plugins → Activate
+8. What if multiple plugins hook
+   into wp_head?
 
-CHECK:
-Left admin menu → "My Menu"
+--------------------------------------------------
 
-==================================================
-FUNCTIONS YOU SUCCESSFULLY TESTED
-==================================================
-register_nav_menu
-wp_nav_menu
-register_sidebar
-get_sidebar
-dynamic_sidebar
-is_active_sidebar
-add_menu_page
+9. What if wp_footer() is called
+   twice accidentally?
+
+--------------------------------------------------
 
 ==================================================
-IMPORTANT BEGINNER TIPS
+SECTION 3: TEMPLATE PARTS
+(get_template_part)
 ==================================================
-1) Theme = frontend UI
-2) Plugin = admin logic
-3) Menu needs BOTH register + display
-4) Sidebar needs ALL 3 steps
-5) Admin menu NEVER goes in theme
+
+10. What if get_template_part()
+    loads a file that does NOT exist?
+
+--------------------------------------------------
+
+11. What if both slug.php and
+    slug-name.php exist?
+
+--------------------------------------------------
+
+12. What if get_template_part()
+    is called inside a loop?
+
+--------------------------------------------------
+
+13. What if child theme has
+    the same template part?
+
+--------------------------------------------------
+
+==================================================
+SECTION 4: MENUS
+(register_nav_menu, wp_nav_menu)
+==================================================
+
+14. What if register_nav_menu()
+    is NOT called but wp_nav_menu() is?
+
+--------------------------------------------------
+
+15. What if wp_nav_menu() is called
+    without assigning menu in admin?
+
+--------------------------------------------------
+
+16. What if two menus are registered
+    but only one is assigned?
+
+--------------------------------------------------
+
+17. What if wp_nav_menu() is called
+    with wrong theme_location?
+
+--------------------------------------------------
+
+==================================================
+SECTION 5: URL FUNCTIONS
+(home_url, site_url)
+==================================================
+
+18. What if WordPress is installed
+    in a subfolder?
+
+--------------------------------------------------
+
+19. What if home_url() is used
+    for wp-admin links?
+
+--------------------------------------------------
+
+20. What if site_url() is used
+    for frontend navigation?
+
+--------------------------------------------------
+
+21. What if home_url() is called
+    with a custom path?
+
+--------------------------------------------------
+
+==================================================
+SECTION 6: SEARCH FORM
+(get_search_form)
+==================================================
+
+22. What if searchform.php
+    exists in theme?
+
+--------------------------------------------------
+
+23. What if get_search_form(false)
+    is used?
+
+--------------------------------------------------
+
+24. What if get_search_form()
+    is called multiple times?
+
+--------------------------------------------------
+
+==================================================
+SECTION 7: SIDEBARS & WIDGETS
+(register_sidebar, get_sidebar,
+ dynamic_sidebar, is_active_sidebar)
+==================================================
+
+25. What if register_sidebar()
+    is NOT called but get_sidebar() is?
+
+--------------------------------------------------
+
+26. What if sidebar.php exists
+    but dynamic_sidebar() is missing?
+
+--------------------------------------------------
+
+27. What if is_active_sidebar()
+    returns false?
+
+--------------------------------------------------
+
+28. What if dynamic_sidebar()
+    is called with wrong ID?
+
+--------------------------------------------------
+
+29. What if multiple sidebars
+    use same ID?
+
+--------------------------------------------------
+
+==================================================
+SECTION 8: CONDITIONAL FUNCTIONS
+(is_front_page, is_admin)
+==================================================
+
+30. What if is_front_page()
+    is checked on blog page?
+
+--------------------------------------------------
+
+31. What if is_admin() is used
+    in frontend AJAX?
+
+--------------------------------------------------
+
+32. What if is_admin() is used
+    inside a shortcode?
+
+--------------------------------------------------
+
+33. What if both conditions
+    are used together?
+
+--------------------------------------------------
+
+==================================================
+SECTION 9: LOOP FUNCTIONS
+(have_posts, the_post)
+==================================================
+
+34. What if the_post()
+    is called without have_posts()?
+
+--------------------------------------------------
+
+35. What if have_posts()
+    returns false?
+
+--------------------------------------------------
+
+36. What if the_post()
+    is called twice in one loop?
+
+--------------------------------------------------
+
+37. What if loop is nested
+    without wp_reset_postdata()?
+
+--------------------------------------------------
+
+==================================================
+SECTION 10: HEADER & FOOTER
+(get_header, get_footer)
+==================================================
+
+38. What if get_header()
+    is called twice?
+
+--------------------------------------------------
+
+39. What if get_footer('custom')
+    file does not exist?
+
+--------------------------------------------------
+
+40. What if get_footer()
+    is missing from theme?
+
+--------------------------------------------------
+
+==================================================
+SECTION 11: HOOK REGISTRATION
+(add_action, add_filter)
+==================================================
+
+41. What if add_action()
+    uses wrong hook name?
+
+--------------------------------------------------
+
+42. What if add_filter()
+    forgets to return value?
+
+--------------------------------------------------
+
+43. What if same callback is added
+    to multiple hooks?
+
+--------------------------------------------------
+
+44. What if same hook has
+    many callbacks?
+
+--------------------------------------------------
+
+==================================================
+SECTION 12: ASSET LOADING
+(wp_enqueue_style, wp_enqueue_script)
+==================================================
+
+45. What if script dependency
+    is missing?
+
+--------------------------------------------------
+
+46. What if wp_enqueue_script()
+    is called outside hook?
+
+--------------------------------------------------
+
+47. What if same handle
+    is used twice?
+
+--------------------------------------------------
+
+48. What if script is enqueued
+    in header instead of footer?
+
+--------------------------------------------------
+
+==================================================
+SECTION 13: USER CAPABILITIES
+(add_cap, remove_cap, user_can)
+==================================================
+
+49. What if add_cap()
+    is added to Administrator?
+
+--------------------------------------------------
+
+50. What if remove_cap()
+    removes required capability?
+
+--------------------------------------------------
+
+51. What if user_can()
+    is checked for wrong role?
+
+--------------------------------------------------
+
+52. What if capability is added
+    but user is already logged in?
+
+--------------------------------------------------
+
+==================================================
+PRACTICE RULES
+==================================================
+✔ One testcase at a time
+✔ Predict FIRST
+✔ Then test
+✔ Write result in comments
+✔ Break things safely
 
 ==================================================
 END OF FILE
