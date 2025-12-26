@@ -1,352 +1,418 @@
 
 
-==================================================
-WORDPRESS CORE FUNCTIONS – PRACTICE TESTCASES
-(NO ANSWERS – YOU PREDICT OUTPUT)
-==================================================
-
-INSTRUCTIONS
---------------------------------------------------
-For every testcase:
-1) Write test code
-2) Predict result
-3) Run in WordPress
-4) Observe actual behavior
-
-==================================================
-SECTION 1: OPTIONS API
-(add_option, update_option, delete_option)
-==================================================
-
-1. What if add_option() is called twice
-   with the SAME option name?
+====================================================================
+WORDPRESS FUNCTIONS – REAL WORLD PRACTICAL USE CASES
+(FULL DESCRIPTION FOR EACH POINT)
+====================================================================
 
 --------------------------------------------------
+1. do_action()
+--------------------------------------------------
+Purpose:
+Triggers an event so other code can respond to it.
 
-2. What if update_option() is called
-   on an option that does NOT exist?
+1) Creating extension points in plugins
+   In real-world plugins, you should not hardcode
+   all logic in one place. By using do_action(),
+   you allow other developers or future code
+   to hook into your plugin and extend functionality
+   without editing your plugin files.
+
+2) Running multiple processes after one event
+   Example: after a form submission, you may need
+   to send an email, store data, trigger analytics,
+   and notify admin. do_action() allows all these
+   processes to run independently.
+
+3) Decoupling business logic
+   Instead of calling functions directly, do_action()
+   separates “when something happens” from “what
+   should happen”, making code modular and maintainable.
+
+4) Plugin interoperability
+   One plugin can fire an action and another plugin
+   can listen to it. This avoids tight dependency
+   between plugins and keeps the system flexible.
+
+5) Replacing rigid code flow
+   Actions allow you to remove or replace behavior
+   later using remove_action(), which is impossible
+   with direct function calls.
 
 --------------------------------------------------
+2. add_filter()
+--------------------------------------------------
+Purpose:
+Modify data before it is displayed or saved.
 
-3. What if delete_option() is called
-   on a non-existing option?
+1) Modifying output without editing files
+   In client projects, modifying theme or plugin
+   files directly is risky. add_filter() allows
+   you to safely change output without touching
+   original code.
+
+2) Global formatting rules
+   Filters are used to apply consistent formatting
+   like currency symbols, text casing, or HTML
+   wrappers across the entire site.
+
+3) Plugin customization
+   SEO plugins, cache plugins, and form plugins
+   expose filters so developers can modify titles,
+   descriptions, or data before output.
+
+4) Conditional content changes
+   Filters can apply logic based on page type,
+   user role, or request type, ensuring changes
+   happen only where needed.
+
+5) Data sanitization
+   Filters are commonly used to clean, validate,
+   or normalize data before saving or rendering,
+   improving security and consistency.
 
 --------------------------------------------------
+3. apply_filters()
+--------------------------------------------------
+Purpose:
+Send data through filters so it can be modified.
 
-4. What if add_option() is called with
-   autoload = "no"?
+1) Making plugin output customizable
+   Instead of hardcoding values, apply_filters()
+   lets other developers override or modify data
+   safely.
+
+2) Avoiding direct overrides
+   apply_filters() prevents the need to edit
+   plugin files, reducing upgrade issues.
+
+3) Supporting multiple modifications
+   Several plugins can modify the same data
+   in a controlled order using priorities.
+
+4) Theme–plugin cooperation
+   Themes can change how plugin data looks
+   without knowing internal plugin logic.
+
+5) Creating internal data pipelines
+   apply_filters() enables building flexible,
+   API-like data processing systems inside WordPress.
 
 --------------------------------------------------
+4. add_cap()
+--------------------------------------------------
+Purpose:
+Add new permissions to user roles.
 
-5. What if update_option() updates
-   the option with the SAME value?
+1) Creating plugin-specific permissions
+   Custom post types or features often require
+   custom access rules beyond default WordPress roles.
+
+2) Enterprise-level access control
+   Large systems like LMS, CRM, or ERP need
+   fine-grained permissions for different users.
+
+3) Reducing admin access risks
+   Instead of giving admin rights, add_cap()
+   allows granting only required permissions.
+
+4) Multi-user environments
+   Different users perform different tasks safely
+   without interfering with others.
+
+5) Security hardening
+   Limiting access reduces the impact of
+   compromised accounts.
 
 --------------------------------------------------
+5. remove_cap()
+--------------------------------------------------
+Purpose:
+Remove permissions from roles.
 
-==================================================
-SECTION 2: THEME HEAD & FOOTER
-(wp_head, wp_footer)
-==================================================
+1) Client safety
+   Many clients accidentally delete content.
+   remove_cap() prevents irreversible mistakes.
 
-6. What if wp_head() is missing
-   from header.php?
+2) Workflow enforcement
+   You can enforce review and approval workflows
+   by removing publish or delete permissions.
+
+3) Simplifying admin UI
+   Removing capabilities reduces clutter and
+   confusion for non-technical users.
+
+4) Security improvement
+   Fewer permissions mean fewer attack vectors.
+
+5) Custom business rules
+   Some businesses require strict role separation,
+   which remove_cap() enforces.
 
 --------------------------------------------------
+6. user_can()
+--------------------------------------------------
+Purpose:
+Check whether a user has permission.
 
-7. What if wp_footer() is missing
-   from footer.php?
+1) Protecting admin pages
+   Prevent unauthorized users from accessing
+   sensitive plugin or system settings.
+
+2) Conditional UI rendering
+   Buttons, links, and menus should appear only
+   for users who can actually use them.
+
+3) Securing AJAX and API endpoints
+   user_can() prevents unauthorized background
+   requests that could expose data.
+
+4) Membership and subscription systems
+   Restrict premium content based on permissions.
+
+5) Feature availability control
+   Enable or disable features based on user roles.
 
 --------------------------------------------------
+7. wp_register_script()
+--------------------------------------------------
+Purpose:
+Register JavaScript without loading it.
 
-8. What if multiple plugins hook
-   into wp_head?
+1) Performance optimization
+   Register scripts once and load them only
+   on pages where they are needed.
+
+2) Avoiding duplicate scripts
+   Multiple plugins can reuse the same script
+   without conflicts.
+
+3) Dependency control
+   Ensures scripts load in correct order.
+
+4) Conditional logic
+   Scripts load only when conditions are met,
+   reducing page weight.
+
+5) Plugin extensibility
+   Other plugins can enqueue registered scripts
+   instead of re-registering them.
 
 --------------------------------------------------
+8. wp_register_style()
+--------------------------------------------------
+Purpose:
+Register CSS without loading it.
 
-9. What if wp_footer() is called
-   twice accidentally?
+1) Page-specific styling
+   Load styles only on pages that need them.
+
+2) Component-based architecture
+   CSS can be organized into reusable modules.
+
+3) Theme and plugin compatibility
+   Prevent duplicate stylesheets.
+
+4) Dependency handling
+   Manage parent–child theme relationships.
+
+5) Maintainable asset management
+   Clean separation of registration and loading.
 
 --------------------------------------------------
+9. wp_print_scripts()
+--------------------------------------------------
+Purpose:
+Manually output registered scripts.
 
-==================================================
-SECTION 3: TEMPLATE PARTS
-(get_template_part)
-==================================================
+1) Legacy theme compatibility
+   Older themes sometimes require manual output.
 
-10. What if get_template_part()
-    loads a file that does NOT exist?
+2) Custom rendering systems
+   Used in page builders or non-standard layouts.
+
+3) Debugging
+   Helps identify script loading issues.
+
+4) Script order control
+   Ensures scripts appear exactly where required.
+
+5) Specialized templates
+   Used when default enqueue system is insufficient.
 
 --------------------------------------------------
+10. wp_print_styles()
+--------------------------------------------------
+Purpose:
+Manually output registered styles.
 
-11. What if both slug.php and
-    slug-name.php exist?
+1) Legacy system support
+2) Debugging CSS output
+3) Custom template rendering
+4) Controlled layout systems
+5) Advanced theme customization
 
 --------------------------------------------------
+11. wp_enqueue_style()
+--------------------------------------------------
+Purpose:
+Safely load CSS files.
 
-12. What if get_template_part()
-    is called inside a loop?
+1) Theme styling
+   Core styling for frontend UI.
+
+2) Plugin UI styling
+   Style plugin-generated elements.
+
+3) Conditional loading
+   Load styles only where required.
+
+4) Cache control
+   Versioning prevents stale CSS.
+
+5) Conflict prevention
+   Avoid duplicate or conflicting styles.
 
 --------------------------------------------------
+12. wp_enqueue_script()
+--------------------------------------------------
+Purpose:
+Safely load JavaScript files.
 
-13. What if child theme has
-    the same template part?
+1) Frontend interactions
+   Sliders, modals, forms.
+
+2) AJAX functionality
+   Background requests and updates.
+
+3) Admin panel enhancements
+   Interactive admin interfaces.
+
+4) Dependency management
+   Ensures required libraries load first.
+
+5) Performance optimization
+   Footer loading reduces render blocking.
 
 --------------------------------------------------
+13. add_menu_page()
+--------------------------------------------------
+Purpose:
+Create top-level admin menu.
 
-==================================================
-SECTION 4: MENUS
-(register_nav_menu, wp_nav_menu)
-==================================================
+1) Plugin dashboards
+   Central place for plugin control.
 
-14. What if register_nav_menu()
-    is NOT called but wp_nav_menu() is?
+2) Business tools
+   CRM, LMS, reporting systems.
+
+3) Custom admin workflows
+   Centralized management UI.
+
+4) Analytics dashboards
+   Display charts and reports.
+
+5) Enterprise plugins
+   Full-featured admin interfaces.
 
 --------------------------------------------------
+14. add_submenu_page()
+--------------------------------------------------
+Purpose:
+Create submenu pages.
 
-15. What if wp_nav_menu() is called
-    without assigning menu in admin?
+1) Settings sections
+   Separate configuration areas.
+
+2) Reports and analytics
+   Organized data views.
+
+3) Import/export tools
+   Data management features.
+
+4) Feature grouping
+   Better admin UX.
+
+5) Step-based workflows
+   Guided admin processes.
 
 --------------------------------------------------
+15. add_option()
+--------------------------------------------------
+Purpose:
+Store permanent configuration data.
 
-16. What if two menus are registered
-    but only one is assigned?
+1) Default plugin settings
+   Initial configuration storage.
+
+2) API credentials
+   Secure key storage.
+
+3) Feature toggles
+   Enable/disable features.
+
+4) Installation flags
+   Track setup completion.
+
+5) Global plugin state
+   Store system-wide values.
 
 --------------------------------------------------
+16. update_option()
+--------------------------------------------------
+Purpose:
+Update configuration data.
 
-17. What if wp_nav_menu() is called
-    with wrong theme_location?
+1) Saving admin form data
+2) Updating plugin settings
+3) User preference storage
+4) Feature state updates
+5) Dynamic configuration changes
 
 --------------------------------------------------
+17. delete_option()
+--------------------------------------------------
+Purpose:
+Remove stored configuration.
 
-==================================================
-SECTION 5: URL FUNCTIONS
-(home_url, site_url)
-==================================================
-
-18. What if WordPress is installed
-    in a subfolder?
+1) Plugin uninstall cleanup
+2) Reset settings feature
+3) Remove deprecated options
+4) Privacy compliance
+5) Database optimization
 
 --------------------------------------------------
+18. register_nav_menus()
+--------------------------------------------------
+Purpose:
+Register menu locations.
 
-19. What if home_url() is used
-    for wp-admin links?
+1) Header navigation
+2) Footer navigation
+3) Sidebar menus
+4) Mobile menus
+5) Multi-language navigation
 
 --------------------------------------------------
-
-20. What if site_url() is used
-    for frontend navigation?
-
+19. wp_nav_menu()
 --------------------------------------------------
+Purpose:
+Display menus dynamically.
 
-21. What if home_url() is called
-    with a custom path?
+1) Admin-controlled navigation
+   Clients manage menus easily.
 
---------------------------------------------------
+2) Role-based menus
+   Different menus for different users.
 
-==================================================
-SECTION 6: SEARCH FORM
-(get_search_form)
-==================================================
+3) Responsive layouts
+   Same menu, different display.
 
-22. What if searchform.php
-    exists in theme?
+4) CMS-driven structure
+   Navigation controlled from admin.
 
---------------------------------------------------
-
-23. What if get_search_form(false)
-    is used?
-
---------------------------------------------------
-
-24. What if get_search_form()
-    is called multiple times?
-
---------------------------------------------------
-
-==================================================
-SECTION 7: SIDEBARS & WIDGETS
-(register_sidebar, get_sidebar,
- dynamic_sidebar, is_active_sidebar)
-==================================================
-
-25. What if register_sidebar()
-    is NOT called but get_sidebar() is?
-
---------------------------------------------------
-
-26. What if sidebar.php exists
-    but dynamic_sidebar() is missing?
-
---------------------------------------------------
-
-27. What if is_active_sidebar()
-    returns false?
-
---------------------------------------------------
-
-28. What if dynamic_sidebar()
-    is called with wrong ID?
-
---------------------------------------------------
-
-29. What if multiple sidebars
-    use same ID?
-
---------------------------------------------------
-
-==================================================
-SECTION 8: CONDITIONAL FUNCTIONS
-(is_front_page, is_admin)
-==================================================
-
-30. What if is_front_page()
-    is checked on blog page?
-
---------------------------------------------------
-
-31. What if is_admin() is used
-    in frontend AJAX?
-
---------------------------------------------------
-
-32. What if is_admin() is used
-    inside a shortcode?
-
---------------------------------------------------
-
-33. What if both conditions
-    are used together?
-
---------------------------------------------------
-
-==================================================
-SECTION 9: LOOP FUNCTIONS
-(have_posts, the_post)
-==================================================
-
-34. What if the_post()
-    is called without have_posts()?
-
---------------------------------------------------
-
-35. What if have_posts()
-    returns false?
-
---------------------------------------------------
-
-36. What if the_post()
-    is called twice in one loop?
-
---------------------------------------------------
-
-37. What if loop is nested
-    without wp_reset_postdata()?
-
---------------------------------------------------
-
-==================================================
-SECTION 10: HEADER & FOOTER
-(get_header, get_footer)
-==================================================
-
-38. What if get_header()
-    is called twice?
-
---------------------------------------------------
-
-39. What if get_footer('custom')
-    file does not exist?
-
---------------------------------------------------
-
-40. What if get_footer()
-    is missing from theme?
-
---------------------------------------------------
-
-==================================================
-SECTION 11: HOOK REGISTRATION
-(add_action, add_filter)
-==================================================
-
-41. What if add_action()
-    uses wrong hook name?
-
---------------------------------------------------
-
-42. What if add_filter()
-    forgets to return value?
-
---------------------------------------------------
-
-43. What if same callback is added
-    to multiple hooks?
-
---------------------------------------------------
-
-44. What if same hook has
-    many callbacks?
-
---------------------------------------------------
-
-==================================================
-SECTION 12: ASSET LOADING
-(wp_enqueue_style, wp_enqueue_script)
-==================================================
-
-45. What if script dependency
-    is missing?
-
---------------------------------------------------
-
-46. What if wp_enqueue_script()
-    is called outside hook?
-
---------------------------------------------------
-
-47. What if same handle
-    is used twice?
-
---------------------------------------------------
-
-48. What if script is enqueued
-    in header instead of footer?
-
---------------------------------------------------
-
-==================================================
-SECTION 13: USER CAPABILITIES
-(add_cap, remove_cap, user_can)
-==================================================
-
-49. What if add_cap()
-    is added to Administrator?
-
---------------------------------------------------
-
-50. What if remove_cap()
-    removes required capability?
-
---------------------------------------------------
-
-51. What if user_can()
-    is checked for wrong role?
-
---------------------------------------------------
-
-52. What if capability is added
-    but user is already logged in?
-
---------------------------------------------------
-
-==================================================
-PRACTICE RULES
-==================================================
-✔ One testcase at a time
-✔ Predict FIRST
-✔ Then test
-✔ Write result in comments
-✔ Break things safely
+5) Dynamic frontend rendering
+   Menus adapt without code changes.
 
 ==================================================
 END OF FILE
