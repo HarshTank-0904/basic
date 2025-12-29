@@ -1,419 +1,739 @@
-
-
 ====================================================================
-WORDPRESS FUNCTIONS – REAL WORLD PRACTICAL USE CASES
-(FULL DESCRIPTION FOR EACH POINT)
+WORDPRESS SANITIZE & ESCAPE FUNCTIONS
+25 FIELD TYPES – SAME DEPTH – SUPER DETAILED
 ====================================================================
 
---------------------------------------------------
-1. do_action()
---------------------------------------------------
-Purpose:
-Triggers an event so other code can respond to it.
-
-1) Creating extension points in plugins
-   In real-world plugins, you should not hardcode
-   all logic in one place. By using do_action(),
-   you allow other developers or future code
-   to hook into your plugin and extend functionality
-   without editing your plugin files.
-
-2) Running multiple processes after one event
-   Example: after a form submission, you may need
-   to send an email, store data, trigger analytics,
-   and notify admin. do_action() allows all these
-   processes to run independently.
-
-3) Decoupling business logic
-   Instead of calling functions directly, do_action()
-   separates “when something happens” from “what
-   should happen”, making code modular and maintainable.
-
-4) Plugin interoperability
-   One plugin can fire an action and another plugin
-   can listen to it. This avoids tight dependency
-   between plugins and keeps the system flexible.
-
-5) Replacing rigid code flow
-   Actions allow you to remove or replace behavior
-   later using remove_action(), which is impossible
-   with direct function calls.
-
---------------------------------------------------
-2. add_filter()
---------------------------------------------------
-Purpose:
-Modify data before it is displayed or saved.
-
-1) Modifying output without editing files
-   In client projects, modifying theme or plugin
-   files directly is risky. add_filter() allows
-   you to safely change output without touching
-   original code.
-
-2) Global formatting rules
-   Filters are used to apply consistent formatting
-   like currency symbols, text casing, or HTML
-   wrappers across the entire site.
-
-3) Plugin customization
-   SEO plugins, cache plugins, and form plugins
-   expose filters so developers can modify titles,
-   descriptions, or data before output.
-
-4) Conditional content changes
-   Filters can apply logic based on page type,
-   user role, or request type, ensuring changes
-   happen only where needed.
-
-5) Data sanitization
-   Filters are commonly used to clean, validate,
-   or normalize data before saving or rendering,
-   improving security and consistency.
-
---------------------------------------------------
-3. apply_filters()
---------------------------------------------------
-Purpose:
-Send data through filters so it can be modified.
-
-1) Making plugin output customizable
-   Instead of hardcoding values, apply_filters()
-   lets other developers override or modify data
-   safely.
-
-2) Avoiding direct overrides
-   apply_filters() prevents the need to edit
-   plugin files, reducing upgrade issues.
-
-3) Supporting multiple modifications
-   Several plugins can modify the same data
-   in a controlled order using priorities.
-
-4) Theme–plugin cooperation
-   Themes can change how plugin data looks
-   without knowing internal plugin logic.
-
-5) Creating internal data pipelines
-   apply_filters() enables building flexible,
-   API-like data processing systems inside WordPress.
-
---------------------------------------------------
-4. add_cap()
---------------------------------------------------
-Purpose:
-Add new permissions to user roles.
-
-1) Creating plugin-specific permissions
-   Custom post types or features often require
-   custom access rules beyond default WordPress roles.
-
-2) Enterprise-level access control
-   Large systems like LMS, CRM, or ERP need
-   fine-grained permissions for different users.
-
-3) Reducing admin access risks
-   Instead of giving admin rights, add_cap()
-   allows granting only required permissions.
-
-4) Multi-user environments
-   Different users perform different tasks safely
-   without interfering with others.
+GLOBAL RULE:
+1. SANITIZE on SAVE (database safety)
+2. ESCAPE on OUTPUT (XSS prevention)
 
-5) Security hardening
-   Limiting access reduces the impact of
-   compromised accounts.
-
---------------------------------------------------
-5. remove_cap()
---------------------------------------------------
-Purpose:
-Remove permissions from roles.
+Never reverse these steps.
 
-1) Client safety
-   Many clients accidentally delete content.
-   remove_cap() prevents irreversible mistakes.
+====================================================================
+CASE 1: TEXT FIELD (SINGLE LINE, NO HTML)
+====================================================================
 
-2) Workflow enforcement
-   You can enforce review and approval workflows
-   by removing publish or delete permissions.
+Field Purpose:
+Used for short plain text like name, title, label.
 
-3) Simplifying admin UI
-   Removing capabilities reduces clutter and
-   confusion for non-technical users.
+User Input Nature:
+Single line, free text, no formatting allowed.
 
-4) Security improvement
-   Fewer permissions mean fewer attack vectors.
+Sanitize Function (SAVE):
+sanitize_text_field()
 
-5) Custom business rules
-   Some businesses require strict role separation,
-   which remove_cap() enforces.
+Why This Function:
+- Removes all HTML tags
+- Strips scripts
+- Normalizes whitespace
+- Safe for database storage
 
---------------------------------------------------
-6. user_can()
---------------------------------------------------
-Purpose:
-Check whether a user has permission.
-
-1) Protecting admin pages
-   Prevent unauthorized users from accessing
-   sensitive plugin or system settings.
-
-2) Conditional UI rendering
-   Buttons, links, and menus should appear only
-   for users who can actually use them.
-
-3) Securing AJAX and API endpoints
-   user_can() prevents unauthorized background
-   requests that could expose data.
-
-4) Membership and subscription systems
-   Restrict premium content based on permissions.
+Escape Function (OUTPUT):
+esc_html()
 
-5) Feature availability control
-   Enable or disable features based on user roles.
+Why This Escape:
+- Converts special characters to HTML entities
+- Prevents HTML execution
 
---------------------------------------------------
-7. wp_register_script()
---------------------------------------------------
-Purpose:
-Register JavaScript without loading it.
-
-1) Performance optimization
-   Register scripts once and load them only
-   on pages where they are needed.
+Test Input:
+<b>Hello</b>   World<script>
 
-2) Avoiding duplicate scripts
-   Multiple plugins can reuse the same script
-   without conflicts.
+Stored Value:
+Hello World
 
-3) Dependency control
-   Ensures scripts load in correct order.
+Displayed Output:
+Hello World
 
-4) Conditional logic
-   Scripts load only when conditions are met,
-   reducing page weight.
+Security Result:
+HTML and scripts removed, output safe.
 
-5) Plugin extensibility
-   Other plugins can enqueue registered scripts
-   instead of re-registering them.
+--------------------------------------------------------------------
+CASE 2: TEXTAREA FIELD (MULTI-LINE, NO HTML)
+--------------------------------------------------------------------
 
---------------------------------------------------
-8. wp_register_style()
---------------------------------------------------
-Purpose:
-Register CSS without loading it.
+Field Purpose:
+Used for descriptions, notes, plain comments.
 
-1) Page-specific styling
-   Load styles only on pages that need them.
+User Input Nature:
+Multiple lines allowed, formatting not allowed.
 
-2) Component-based architecture
-   CSS can be organized into reusable modules.
+Sanitize Function (SAVE):
+sanitize_textarea_field()
 
-3) Theme and plugin compatibility
-   Prevent duplicate stylesheets.
+Why This Function:
+- Removes all HTML
+- Preserves new lines
+- Normalizes line endings
+- Safer than sanitize_text_field() for textarea
 
-4) Dependency handling
-   Manage parent–child theme relationships.
+Escape Function (OUTPUT):
+esc_textarea()
 
-5) Maintainable asset management
-   Clean separation of registration and loading.
+Why This Escape:
+- Escapes text safely inside <textarea>
+- Preserves formatting visually
 
---------------------------------------------------
-9. wp_print_scripts()
---------------------------------------------------
-Purpose:
-Manually output registered scripts.
+Test Input:
+Hello
+<script>alert(1)</script>
+World
 
-1) Legacy theme compatibility
-   Older themes sometimes require manual output.
+Stored Value:
+Hello
+alert(1)
+World
 
-2) Custom rendering systems
-   Used in page builders or non-standard layouts.
+Displayed Output:
+Hello
+alert(1)
+World
 
-3) Debugging
-   Helps identify script loading issues.
+Security Result:
+HTML removed, new lines preserved safely.
 
-4) Script order control
-   Ensures scripts appear exactly where required.
+--------------------------------------------------------------------
+CASE 3: EMAIL FIELD
+--------------------------------------------------------------------
 
-5) Specialized templates
-   Used when default enqueue system is insufficient.
+Field Purpose:
+Stores email addresses.
 
---------------------------------------------------
-10. wp_print_styles()
---------------------------------------------------
-Purpose:
-Manually output registered styles.
+User Input Nature:
+Structured data with strict format.
 
-1) Legacy system support
-2) Debugging CSS output
-3) Custom template rendering
-4) Controlled layout systems
-5) Advanced theme customization
+Sanitize Function (SAVE):
+sanitize_email()
 
---------------------------------------------------
-11. wp_enqueue_style()
---------------------------------------------------
-Purpose:
-Safely load CSS files.
+Why This Function:
+- Removes invalid characters
+- Ensures valid email format
+- Prevents script injection
 
-1) Theme styling
-   Core styling for frontend UI.
+Escape Function (OUTPUT):
+esc_html()
 
-2) Plugin UI styling
-   Style plugin-generated elements.
+Why This Escape:
+- Email displayed as plain text
+- Prevents HTML execution
 
-3) Conditional loading
-   Load styles only where required.
+Test Input:
+test<script>@mail.com
 
-4) Cache control
-   Versioning prevents stale CSS.
+Stored Value:
+test@mail.com
 
-5) Conflict prevention
-   Avoid duplicate or conflicting styles.
+Displayed Output:
+test@mail.com
 
---------------------------------------------------
-12. wp_enqueue_script()
---------------------------------------------------
-Purpose:
-Safely load JavaScript files.
+Security Result:
+Invalid characters stripped, valid email preserved.
 
-1) Frontend interactions
-   Sliders, modals, forms.
+--------------------------------------------------------------------
+CASE 4: URL FIELD
+--------------------------------------------------------------------
 
-2) AJAX functionality
-   Background requests and updates.
+Field Purpose:
+Website URLs, redirects, external links.
 
-3) Admin panel enhancements
-   Interactive admin interfaces.
+User Input Nature:
+Must follow valid URL protocols.
 
-4) Dependency management
-   Ensures required libraries load first.
+Sanitize Function (SAVE):
+esc_url_raw()
 
-5) Performance optimization
-   Footer loading reduces render blocking.
+Why This Function:
+- Removes unsafe protocols
+- Cleans URL before DB storage
 
---------------------------------------------------
-13. add_menu_page()
---------------------------------------------------
-Purpose:
-Create top-level admin menu.
+Escape Function (OUTPUT):
+esc_url()
 
-1) Plugin dashboards
-   Central place for plugin control.
+Why This Escape:
+- Encodes URL safely for HTML
+- Prevents javascript: injection
 
-2) Business tools
-   CRM, LMS, reporting systems.
+Test Input:
+javascript:alert(1)
 
-3) Custom admin workflows
-   Centralized management UI.
+Stored Value:
+(empty)
 
-4) Analytics dashboards
-   Display charts and reports.
+Displayed Output:
+(empty)
 
-5) Enterprise plugins
-   Full-featured admin interfaces.
+Security Result:
+Unsafe protocol blocked completely.
 
---------------------------------------------------
-14. add_submenu_page()
---------------------------------------------------
-Purpose:
-Create submenu pages.
+--------------------------------------------------------------------
+CASE 5: INTEGER NUMBER FIELD
+--------------------------------------------------------------------
 
-1) Settings sections
-   Separate configuration areas.
+Field Purpose:
+Age, quantity, counters.
 
-2) Reports and analytics
-   Organized data views.
+User Input Nature:
+Only whole numbers allowed.
 
-3) Import/export tools
-   Data management features.
+Sanitize Function (SAVE):
+absint()
 
-4) Feature grouping
-   Better admin UX.
+Why This Function:
+- Converts value to absolute integer
+- Removes non-numeric input
 
-5) Step-based workflows
-   Guided admin processes.
+Escape Function (OUTPUT):
+esc_html()
 
---------------------------------------------------
-15. add_option()
---------------------------------------------------
-Purpose:
-Store permanent configuration data.
+Why This Escape:
+- Safe numeric display
 
-1) Default plugin settings
-   Initial configuration storage.
+Test Input:
+-25abc
 
-2) API credentials
-   Secure key storage.
+Stored Value:
+25
 
-3) Feature toggles
-   Enable/disable features.
+Displayed Output:
+25
 
-4) Installation flags
-   Track setup completion.
+Security Result:
+Only valid integer stored.
 
-5) Global plugin state
-   Store system-wide values.
+--------------------------------------------------------------------
+CASE 6: FLOAT / DECIMAL FIELD
+--------------------------------------------------------------------
 
---------------------------------------------------
-16. update_option()
---------------------------------------------------
-Purpose:
-Update configuration data.
+Field Purpose:
+Price, rating, percentage.
 
-1) Saving admin form data
-2) Updating plugin settings
-3) User preference storage
-4) Feature state updates
-5) Dynamic configuration changes
+User Input Nature:
+Decimal numbers allowed.
 
---------------------------------------------------
-17. delete_option()
---------------------------------------------------
-Purpose:
-Remove stored configuration.
+Sanitize Function (SAVE):
+floatval()
 
-1) Plugin uninstall cleanup
-2) Reset settings feature
-3) Remove deprecated options
-4) Privacy compliance
-5) Database optimization
+Why This Function:
+- Converts input to float
+- Removes invalid characters
 
---------------------------------------------------
-18. register_nav_menus()
---------------------------------------------------
-Purpose:
-Register menu locations.
+Escape Function (OUTPUT):
+esc_html()
 
-1) Header navigation
-2) Footer navigation
-3) Sidebar menus
-4) Mobile menus
-5) Multi-language navigation
+Why This Escape:
+- Safe numeric output
 
---------------------------------------------------
-19. wp_nav_menu()
---------------------------------------------------
-Purpose:
-Display menus dynamically.
+Test Input:
+99.99<script>
 
-1) Admin-controlled navigation
-   Clients manage menus easily.
+Stored Value:
+99.99
 
-2) Role-based menus
-   Different menus for different users.
+Displayed Output:
+99.99
 
-3) Responsive layouts
-   Same menu, different display.
+Security Result:
+Script removed, float preserved.
 
-4) CMS-driven structure
-   Navigation controlled from admin.
+--------------------------------------------------------------------
+CASE 7: PASSWORD FIELD
+--------------------------------------------------------------------
 
-5) Dynamic frontend rendering
-   Menus adapt without code changes.
+Field Purpose:
+User authentication credentials.
 
-==================================================
+User Input Nature:
+Sensitive, must remain unchanged.
+
+Sanitize Function (SAVE):
+NONE (raw input)
+
+Why:
+- Sanitizing alters password
+- Causes login failures
+
+Processing:
+wp_hash_password()
+
+Escape Function (OUTPUT):
+NONE (never display password)
+
+Security Result:
+Password securely hashed.
+
+--------------------------------------------------------------------
+CASE 8: CHECKBOX FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+Enable/disable options.
+
+User Input Nature:
+Boolean value.
+
+Sanitize Function (SAVE):
+isset($_POST['field']) ? 1 : 0
+
+Why This Method:
+- Checkbox may not exist in POST
+- Ensures predictable boolean value
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+on
+
+Stored Value:
+1
+
+Displayed Output:
+1
+
+Security Result:
+Boolean safely normalized.
+
+--------------------------------------------------------------------
+CASE 9: RADIO BUTTON
+--------------------------------------------------------------------
+
+Field Purpose:
+Single choice selection.
+
+User Input Nature:
+One value from known options.
+
+Sanitize Function (SAVE):
+sanitize_text_field()
+
+Additional Validation:
+Check value against allowed list.
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+<option onclick="x">
+
+Stored Value:
+option
+
+Displayed Output:
+option
+
+Security Result:
+Invalid attributes removed.
+
+--------------------------------------------------------------------
+CASE 10: SELECT DROPDOWN
+--------------------------------------------------------------------
+
+Field Purpose:
+Controlled list selection.
+
+User Input Nature:
+Must match predefined values.
+
+Sanitize Function (SAVE):
+sanitize_text_field()
+
+Validation:
+in_array($value, $allowed)
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+admin<script>
+
+Stored Value:
+(empty)
+
+Displayed Output:
+(empty)
+
+Security Result:
+Unapproved option rejected.
+
+--------------------------------------------------------------------
+CASE 11: EDITOR / RICH HTML FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+Post content, rich editor.
+
+User Input Nature:
+HTML formatting allowed.
+
+Sanitize Function (SAVE):
+wp_kses_post()
+
+Why This Function:
+- Allows safe HTML
+- Removes scripts and dangerous attributes
+
+Escape Function (OUTPUT):
+the_content()
+
+Why:
+- WordPress handles escaping internally
+
+Test Input:
+<script>alert(1)</script><b>Hello</b>
+
+Stored Value:
+<b>Hello</b>
+
+Displayed Output:
+<b>Hello</b>
+
+Security Result:
+Safe HTML preserved, scripts removed.
+
+--------------------------------------------------------------------
+CASE 12: USERNAME FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+Login identifier.
+
+User Input Nature:
+Restricted characters.
+
+Sanitize Function (SAVE):
+sanitize_user()
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+admin<script>
+
+Stored Value:
+admin
+
+Displayed Output:
+admin
+
+Security Result:
+Invalid characters removed.
+
+--------------------------------------------------------------------
+CASE 13: SLUG FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+SEO-friendly URLs.
+
+User Input Nature:
+Text converted to URL-safe format.
+
+Sanitize Function (SAVE):
+sanitize_title()
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+Hello World!!!
+
+Stored Value:
+hello-world
+
+Displayed Output:
+hello-world
+
+Security Result:
+SEO-safe slug generated.
+
+--------------------------------------------------------------------
+CASE 14: PHONE NUMBER FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+Contact numbers.
+
+User Input Nature:
+Digits only.
+
+Sanitize Function (SAVE):
+preg_replace('/[^0-9]/', '', $phone)
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
++91-99999-88888
+
+Stored Value:
+919999988888
+
+Displayed Output:
+919999988888
+
+Security Result:
+Only numeric data stored.
+
+--------------------------------------------------------------------
+CASE 15: DATE FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+DOB, event date.
+
+User Input Nature:
+Specific date format.
+
+Sanitize Function (SAVE):
+sanitize_text_field()
++ date validation
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+2025-02-30
+
+Stored Value:
+(empty)
+
+Displayed Output:
+(empty)
+
+Security Result:
+Invalid date rejected.
+
+--------------------------------------------------------------------
+CASE 16: TIME FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+Appointments, schedules.
+
+User Input Nature:
+Time format HH:MM.
+
+Sanitize Function (SAVE):
+sanitize_text_field()
++ regex validation
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+25:99
+
+Stored Value:
+(empty)
+
+Displayed Output:
+(empty)
+
+Security Result:
+Invalid time blocked.
+
+--------------------------------------------------------------------
+CASE 17: FILE NAME
+--------------------------------------------------------------------
+
+Field Purpose:
+Uploaded file naming.
+
+User Input Nature:
+Potentially dangerous.
+
+Sanitize Function (SAVE):
+sanitize_file_name()
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+my<script>.php
+
+Stored Value:
+myscript.php
+
+Displayed Output:
+myscript.php
+
+Security Result:
+Unsafe characters removed.
+
+--------------------------------------------------------------------
+CASE 18: FILE TYPE VALIDATION
+--------------------------------------------------------------------
+
+Field Purpose:
+Secure file uploads.
+
+Sanitize Function (SAVE):
+wp_check_filetype()
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+shell.php
+
+Stored Value:
+Rejected
+
+Security Result:
+Malicious file blocked.
+
+--------------------------------------------------------------------
+CASE 19: JSON INPUT
+--------------------------------------------------------------------
+
+Field Purpose:
+Complex settings.
+
+Sanitize Function (SAVE):
+wp_unslash()
+json_decode()
+array sanitization
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+{"key":"<script>"}
+
+Stored Value:
+{"key":"script"}
+
+Security Result:
+JSON cleaned safely.
+
+--------------------------------------------------------------------
+CASE 20: ARRAY INPUT
+--------------------------------------------------------------------
+
+Field Purpose:
+Multiple values.
+
+Sanitize Function (SAVE):
+array_map('sanitize_text_field')
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+["<b>a</b>"]
+
+Stored Value:
+["a"]
+
+Security Result:
+Each value sanitized.
+
+--------------------------------------------------------------------
+CASE 21: SEARCH QUERY
+--------------------------------------------------------------------
+
+Field Purpose:
+Search input.
+
+Sanitize Function (SAVE):
+sanitize_text_field()
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+<script>search</script>
+
+Stored Value:
+search
+
+Security Result:
+Scripts removed.
+
+--------------------------------------------------------------------
+CASE 22: COMMENT FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+User comments.
+
+Sanitize Function (SAVE):
+wp_kses_data()
+
+Escape Function (OUTPUT):
+comment_text()
+
+Security Result:
+Limited HTML allowed safely.
+
+--------------------------------------------------------------------
+CASE 23: HTML ATTRIBUTE VALUE
+--------------------------------------------------------------------
+
+Field Purpose:
+value="", title=""
+
+Sanitize Function (SAVE):
+sanitize_text_field()
+
+Escape Function (OUTPUT):
+esc_attr()
+
+Test Input:
+" onclick="x
+
+Stored Value:
+onclick=x
+
+Displayed Output:
+&quot;onclick=x
+
+Security Result:
+Attribute injection prevented.
+
+--------------------------------------------------------------------
+CASE 24: BOOLEAN FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+True / False options.
+
+Sanitize Function (SAVE):
+(bool) $_POST['field']
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+true
+
+Stored Value:
+1
+
+Security Result:
+Boolean normalized.
+
+--------------------------------------------------------------------
+CASE 25: IP ADDRESS FIELD
+--------------------------------------------------------------------
+
+Field Purpose:
+Logs, security checks.
+
+Sanitize Function (SAVE):
+filter_var($ip, FILTER_VALIDATE_IP)
+
+Escape Function (OUTPUT):
+esc_html()
+
+Test Input:
+999.999.1.1
+
+Stored Value:
+(empty)
+
+Security Result:
+Invalid IP rejected.
+
+====================================================================
 END OF FILE
-==================================================
+====================================================================
