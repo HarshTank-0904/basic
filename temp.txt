@@ -1,203 +1,231 @@
 
 
+
+ASSUMED TABLE
+
+$table = $wpdb->prefix . 'custom_users';
+
+FIELDS
+
+id
+firstname
+lastname
+email
+description
+
+
+
+PLUGIN MAIN FILE
+
 <?php
 
-function wp_test_output( $label, $original, $processed ) {
-	echo '<pre style="background:#111;color:#0f0;padding:10px;margin:10px 0;">';
-	echo "FUNCTION: {$label}\n";
-	echo "ORIGINAL:\n";
-	var_dump( $original );
-	echo "PROCESSED:\n";
-	var_dump( $processed );
-	echo "</pre>";
+include_once plugin_dir_path(__FILE__) . 'functions.php';
+
+add_shortcode('wpdb_all_methods', 'wpdb_all_methods_ui');
+
+
+
+FUNCTIONS FILE
+
+<?php
+
+function wpdb_all_methods_ui() {
+
+	$limit = isset($_POST['limit']) ? intval($_POST['limit']) : 1;
+
+	echo '<form method="post">';
+	echo '<button name="limit" value="1">1</button>';
+	echo '<button name="limit" value="3">3</button>';
+	echo '<button name="limit" value="5">5</button>';
+	echo '</form>';
+
+	wpdb_query_method();
+	wpdb_get_var_method();
+	wpdb_get_row_method();
+	wpdb_get_col_method();
+	wpdb_get_results_method($limit);
 }
 
-function test_wp_kses_post() {
-	$input = '<h1>Title</h1><script>alert(1)</script><p><strong>Bold</strong></p>';
-	wp_test_output( 'wp_kses_post()', $input, wp_kses_post( $input ) );
-}
-add_action( 'init', 'test_wp_kses_post' );
 
-function test_wp_kses_data() {
-	$input = '<div data-id="1" onclick="hack()">Hello</div>';
-	wp_test_output( 'wp_kses_data()', $input, wp_kses_data( $input ) );
-}
-add_action( 'init', 'test_wp_kses_data' );
 
-function test_wp_kses_allowed_html() {
-	wp_test_output( 'wp_kses_allowed_html()', 'allowed', wp_kses_allowed_html( 'post' ) );
-}
-add_action( 'init', 'test_wp_kses_allowed_html' );
+function wpdb_query_method() {
+	global $wpdb;
 
-function test_sanitize_text_field() {
-	$input = " Hello <b>World</b>\n<script>alert(1)</script> ";
-	wp_test_output( 'sanitize_text_field()', $input, sanitize_text_field( $input ) );
-}
-add_action( 'init', 'test_sanitize_text_field' );
+	$table = $wpdb->prefix . 'custom_users';
 
-function test_sanitize_email() {
-	$input = ' test@@example.com<script>';
-	wp_test_output( 'sanitize_email()', $input, sanitize_email( $input ) );
-}
-add_action( 'init', 'test_sanitize_email' );
+	$sql = "SELECT id FROM $table";
 
-function test_sanitize_title() {
-	$input = 'Hello World @ 2025!';
-	wp_test_output( 'sanitize_title()', $input, sanitize_title( $input ) );
-}
-add_action( 'init', 'test_sanitize_title' );
+	$wpdb->query($sql);
 
-function test_sanitize_term() {
-	wp_test_output(
-		'sanitize_term()',
-		' My <b>Category</b> ',
-		sanitize_term( ' My <b>Category</b> ', 'category', 'db' )
+	echo 'query executed';
+}
+
+
+
+function wpdb_get_var_method() {
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'custom_users';
+
+	$count = $wpdb->get_var("SELECT COUNT(id) FROM $table");
+
+	echo '<p>Total Records: ' . esc_html($count) . '</p>';
+}
+
+
+
+function wpdb_get_row_method() {
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'custom_users';
+
+	$row = $wpdb->get_row("SELECT * FROM $table ORDER BY id DESC");
+
+	if ($row) {
+		echo '<p>Single Row: ' . esc_html($row->firstname) . '</p>';
+	}
+}
+
+
+
+function wpdb_get_col_method() {
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'custom_users';
+
+	$emails = $wpdb->get_col("SELECT email FROM $table");
+
+	echo '<ul>';
+	foreach ($emails as $email) {
+		echo '<li>' . esc_html($email) . '</li>';
+	}
+	echo '</ul>';
+}
+
+
+
+function wpdb_get_results_method($limit) {
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'custom_users';
+
+	$sql = $wpdb->prepare(
+		"SELECT * FROM $table ORDER BY id DESC LIMIT %d",
+		$limit
+	);
+
+	$results = $wpdb->get_results($sql);
+
+	echo '<table border="1">';
+	foreach ($results as $row) {
+		echo '<tr>';
+		echo '<td>' . esc_html($row->id) . '</td>';
+		echo '<td>' . esc_html($row->firstname) . '</td>';
+		echo '<td>' . esc_html($row->lastname) . '</td>';
+		echo '<td>' . esc_html($row->email) . '</td>';
+		echo '<td>' . esc_html($row->description) . '</td>';
+		echo '</tr>';
+	}
+	echo '</table>';
+}
+
+
+
+function wpdb_insert_method() {
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'custom_users';
+
+	$wpdb->insert(
+		$table,
+		array(
+			'firstname' => 'John',
+			'lastname' => 'Doe',
+			'email' => 'john@example.com',
+			'description' => 'Inserted record'
+		)
 	);
 }
-add_action( 'init', 'test_sanitize_term' );
 
-function test_sanitize_title_with_dashes() {
-	$input = 'Hello World PHP & WP';
-	wp_test_output( 'sanitize_title_with_dashes()', $input, sanitize_title_with_dashes( $input ) );
-}
-add_action( 'init', 'test_sanitize_title_with_dashes' );
 
-function test_sanitize_textarea_field() {
-	$input = "Line1\n<script>alert(1)</script>\nLine2";
-	wp_test_output( 'sanitize_textarea_field()', $input, sanitize_textarea_field( $input ) );
-}
-add_action( 'init', 'test_sanitize_textarea_field' );
 
-function test_sanitize_user() {
-	$input = ' admin<script> ';
-	wp_test_output( 'sanitize_user()', $input, sanitize_user( $input, true ) );
-}
-add_action( 'init', 'test_sanitize_user' );
-
-function test_sanitize_key() {
-	$input = 'My_Custom-Key!';
-	wp_test_output( 'sanitize_key()', $input, sanitize_key( $input ) );
-}
-add_action( 'init', 'test_sanitize_key' );
-
-function test_sanitize_file_name() {
-	$input = 'my file<script>.jpg';
-	wp_test_output( 'sanitize_file_name()', $input, sanitize_file_name( $input ) );
-}
-add_action( 'init', 'test_sanitize_file_name' );
-
-function test_esc_url() {
-	$input = 'javascript:alert(1)';
-	wp_test_output( 'esc_url()', $input, esc_url( $input ) );
-}
-add_action( 'init', 'test_esc_url' );
-
-function test_esc_url_raw() {
-	$input = 'https://example.com/<script>';
-	wp_test_output( 'esc_url_raw()', $input, esc_url_raw( $input ) );
-}
-add_action( 'init', 'test_esc_url_raw' );
-
-function test_esc_attr() {
-	$input = '" onclick="alert(1)';
-	wp_test_output( 'esc_attr()', $input, esc_attr( $input ) );
-}
-add_action( 'init', 'test_esc_attr' );
-
-function test_esc_attr__() {
-	wp_test_output( 'esc_attr__()', 'Hello <b>World</b>', esc_attr__( 'Hello <b>World</b>', 'textdomain' ) );
-}
-add_action( 'init', 'test_esc_attr__' );
-
-function test_esc_html() {
-	$input = '<b>Hello</b>';
-	wp_test_output( 'esc_html()', $input, esc_html( $input ) );
-}
-add_action( 'init', 'test_esc_html' );
-
-function test_esc_html__() {
-	wp_test_output( 'esc_html__()', 'Hello <i>World</i>', esc_html__( 'Hello <i>World</i>', 'textdomain' ) );
-}
-add_action( 'init', 'test_esc_html__' );
-
-function test_esc_textarea() {
-	$input = "Hello\n<script>alert(1)</script>";
-	wp_test_output( 'esc_textarea()', $input, esc_textarea( $input ) );
-}
-add_action( 'init', 'test_esc_textarea' );
-
-function test_esc_js() {
-	$input = 'alert("XSS")';
-	wp_test_output( 'esc_js()', $input, esc_js( $input ) );
-}
-add_action( 'init', 'test_esc_js' );
-
-function test_esc_sql() {
+function wpdb_update_method() {
 	global $wpdb;
-	$input = "1' OR '1'='1";
-	wp_test_output( 'esc_sql()', $input, esc_sql( $input ) );
-}
-add_action( 'admin_init', 'test_esc_sql' );
 
-function test_wp_specialchars_decode() {
-	$input = '&lt;b&gt;Hello&lt;/b&gt;';
-	wp_test_output( 'wp_specialchars_decode()', $input, wp_specialchars_decode( $input ) );
-}
-add_action( 'init', 'test_wp_specialchars_decode' );
+	$table = $wpdb->prefix . 'custom_users';
 
-function test_wp_strip_all_tags() {
-	$input = '<p>Hello <b>World</b><script>alert(1)</script></p>';
-	wp_test_output( 'wp_strip_all_tags()', $input, wp_strip_all_tags( $input ) );
+	$wpdb->update(
+		$table,
+		array(
+			'firstname' => 'Updated'
+		),
+		array(
+			'id' => 1
+		)
+	);
 }
-add_action( 'init', 'test_wp_strip_all_tags' );
 
-function my_handle_form_submission() {
-	if ( ! isset( $_POST['my_form_submit'] ) ) {
-		return;
-	}
-	update_option( 'my_username', sanitize_text_field( $_POST['username'] ) );
-	update_option( 'my_message', sanitize_textarea_field( $_POST['message'] ) );
-	update_option( 'my_email', sanitize_email( $_POST['email'] ) );
-	update_option( 'my_website', esc_url_raw( $_POST['website'] ) );
-	update_option( 'my_editor_content', wp_kses_post( $_POST['editor_content'] ) );
-}
-add_action( 'init', 'my_handle_form_submission' );
 
-function my_display_data() {
-	echo '<p>' . esc_html( get_option( 'my_username' ) ) . '</p>';
-	echo '<textarea>' . esc_textarea( get_option( 'my_message' ) ) . '</textarea>';
-	echo '<p><a href="mailto:' . esc_attr( get_option( 'my_email' ) ) . '">' . esc_html( get_option( 'my_email' ) ) . '</a></p>';
-	echo '<p><a href="' . esc_url( get_option( 'my_website' ) ) . '">Visit</a></p>';
-	echo get_option( 'my_editor_content' );
-}
-add_action( 'wp_footer', 'my_display_data' );
 
-function my_safe_post_title( $title ) {
-	return esc_html( $title );
-}
-add_filter( 'the_title', 'my_safe_post_title' );
-
-function my_user_data_example() {
-	update_option( 'my_user_slug', sanitize_title( 'Hello World PHP & WP' ) );
-	update_option( 'my_user_key', sanitize_key( 'My_Custom-Key!' ) );
-}
-add_action( 'init', 'my_user_data_example' );
-
-function my_safe_sql_example() {
+function wpdb_replace_method() {
 	global $wpdb;
-	if ( isset( $_GET['username'] ) ) {
-		$wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT * FROM $wpdb->users WHERE user_login = %s",
-				$_GET['username']
-			)
-		);
+
+	$table = $wpdb->prefix . 'custom_users';
+
+	$wpdb->replace(
+		$table,
+		array(
+			'id' => 1,
+			'firstname' => 'Replaced',
+			'lastname' => 'User',
+			'email' => 'replace@example.com',
+			'description' => 'Replace method'
+		)
+	);
+}
+
+
+
+function wpdb_delete_method() {
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'custom_users';
+
+	$wpdb->delete(
+		$table,
+		array(
+			'id' => 2
+		)
+	);
+}
+
+
+
+function wpdb_prepare_method() {
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'custom_users';
+
+	$id = 1;
+
+	$sql = $wpdb->prepare(
+		"SELECT * FROM $table WHERE id = %d",
+		$id
+	);
+
+	$row = $wpdb->get_row($sql);
+
+	if ($row) {
+		echo '<p>Prepared Row: ' . esc_html($row->firstname) . '</p>';
 	}
 }
-add_action( 'admin_init', 'my_safe_sql_example' );
 
-function my_cleanup_examples() {
-	update_option( 'my_clean_text', wp_strip_all_tags( '<p>Hello <b>World</b></p>' ) );
-	update_option( 'my_decoded_text', wp_specialchars_decode( '&lt;b&gt;Bold&lt;/b&gt;' ) );
-}
-add_action( 'init', 'my_cleanup_examples' );
+
+
+HOOK EXECUTION
+
+add_action('init', 'wpdb_insert_method');
+add_action('init', 'wpdb_update_method');
+add_action('init', 'wpdb_replace_method');
+add_action('init', 'wpdb_delete_method');
+add_action('init', 'wpdb_prepare_method');
