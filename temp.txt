@@ -1,739 +1,203 @@
-====================================================================
-WORDPRESS SANITIZE & ESCAPE FUNCTIONS
-25 FIELD TYPES – SAME DEPTH – SUPER DETAILED
-====================================================================
 
-GLOBAL RULE:
-1. SANITIZE on SAVE (database safety)
-2. ESCAPE on OUTPUT (XSS prevention)
 
-Never reverse these steps.
-
-====================================================================
-CASE 1: TEXT FIELD (SINGLE LINE, NO HTML)
-====================================================================
-
-Field Purpose:
-Used for short plain text like name, title, label.
-
-User Input Nature:
-Single line, free text, no formatting allowed.
-
-Sanitize Function (SAVE):
-sanitize_text_field()
-
-Why This Function:
-- Removes all HTML tags
-- Strips scripts
-- Normalizes whitespace
-- Safe for database storage
-
-Escape Function (OUTPUT):
-esc_html()
-
-Why This Escape:
-- Converts special characters to HTML entities
-- Prevents HTML execution
-
-Test Input:
-<b>Hello</b>   World<script>
-
-Stored Value:
-Hello World
-
-Displayed Output:
-Hello World
-
-Security Result:
-HTML and scripts removed, output safe.
-
---------------------------------------------------------------------
-CASE 2: TEXTAREA FIELD (MULTI-LINE, NO HTML)
---------------------------------------------------------------------
-
-Field Purpose:
-Used for descriptions, notes, plain comments.
-
-User Input Nature:
-Multiple lines allowed, formatting not allowed.
-
-Sanitize Function (SAVE):
-sanitize_textarea_field()
-
-Why This Function:
-- Removes all HTML
-- Preserves new lines
-- Normalizes line endings
-- Safer than sanitize_text_field() for textarea
-
-Escape Function (OUTPUT):
-esc_textarea()
-
-Why This Escape:
-- Escapes text safely inside <textarea>
-- Preserves formatting visually
-
-Test Input:
-Hello
-<script>alert(1)</script>
-World
-
-Stored Value:
-Hello
-alert(1)
-World
-
-Displayed Output:
-Hello
-alert(1)
-World
-
-Security Result:
-HTML removed, new lines preserved safely.
-
---------------------------------------------------------------------
-CASE 3: EMAIL FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Stores email addresses.
-
-User Input Nature:
-Structured data with strict format.
-
-Sanitize Function (SAVE):
-sanitize_email()
-
-Why This Function:
-- Removes invalid characters
-- Ensures valid email format
-- Prevents script injection
-
-Escape Function (OUTPUT):
-esc_html()
-
-Why This Escape:
-- Email displayed as plain text
-- Prevents HTML execution
-
-Test Input:
-test<script>@mail.com
-
-Stored Value:
-test@mail.com
-
-Displayed Output:
-test@mail.com
-
-Security Result:
-Invalid characters stripped, valid email preserved.
-
---------------------------------------------------------------------
-CASE 4: URL FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Website URLs, redirects, external links.
-
-User Input Nature:
-Must follow valid URL protocols.
-
-Sanitize Function (SAVE):
-esc_url_raw()
-
-Why This Function:
-- Removes unsafe protocols
-- Cleans URL before DB storage
-
-Escape Function (OUTPUT):
-esc_url()
-
-Why This Escape:
-- Encodes URL safely for HTML
-- Prevents javascript: injection
-
-Test Input:
-javascript:alert(1)
-
-Stored Value:
-(empty)
-
-Displayed Output:
-(empty)
-
-Security Result:
-Unsafe protocol blocked completely.
-
---------------------------------------------------------------------
-CASE 5: INTEGER NUMBER FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Age, quantity, counters.
-
-User Input Nature:
-Only whole numbers allowed.
-
-Sanitize Function (SAVE):
-absint()
-
-Why This Function:
-- Converts value to absolute integer
-- Removes non-numeric input
-
-Escape Function (OUTPUT):
-esc_html()
-
-Why This Escape:
-- Safe numeric display
-
-Test Input:
--25abc
-
-Stored Value:
-25
-
-Displayed Output:
-25
-
-Security Result:
-Only valid integer stored.
-
---------------------------------------------------------------------
-CASE 6: FLOAT / DECIMAL FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Price, rating, percentage.
-
-User Input Nature:
-Decimal numbers allowed.
-
-Sanitize Function (SAVE):
-floatval()
-
-Why This Function:
-- Converts input to float
-- Removes invalid characters
-
-Escape Function (OUTPUT):
-esc_html()
-
-Why This Escape:
-- Safe numeric output
-
-Test Input:
-99.99<script>
-
-Stored Value:
-99.99
-
-Displayed Output:
-99.99
-
-Security Result:
-Script removed, float preserved.
-
---------------------------------------------------------------------
-CASE 7: PASSWORD FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-User authentication credentials.
-
-User Input Nature:
-Sensitive, must remain unchanged.
-
-Sanitize Function (SAVE):
-NONE (raw input)
-
-Why:
-- Sanitizing alters password
-- Causes login failures
-
-Processing:
-wp_hash_password()
-
-Escape Function (OUTPUT):
-NONE (never display password)
-
-Security Result:
-Password securely hashed.
-
---------------------------------------------------------------------
-CASE 8: CHECKBOX FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Enable/disable options.
-
-User Input Nature:
-Boolean value.
-
-Sanitize Function (SAVE):
-isset($_POST['field']) ? 1 : 0
-
-Why This Method:
-- Checkbox may not exist in POST
-- Ensures predictable boolean value
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-on
-
-Stored Value:
-1
-
-Displayed Output:
-1
-
-Security Result:
-Boolean safely normalized.
-
---------------------------------------------------------------------
-CASE 9: RADIO BUTTON
---------------------------------------------------------------------
-
-Field Purpose:
-Single choice selection.
-
-User Input Nature:
-One value from known options.
-
-Sanitize Function (SAVE):
-sanitize_text_field()
-
-Additional Validation:
-Check value against allowed list.
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-<option onclick="x">
-
-Stored Value:
-option
-
-Displayed Output:
-option
-
-Security Result:
-Invalid attributes removed.
-
---------------------------------------------------------------------
-CASE 10: SELECT DROPDOWN
---------------------------------------------------------------------
-
-Field Purpose:
-Controlled list selection.
-
-User Input Nature:
-Must match predefined values.
-
-Sanitize Function (SAVE):
-sanitize_text_field()
-
-Validation:
-in_array($value, $allowed)
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-admin<script>
-
-Stored Value:
-(empty)
-
-Displayed Output:
-(empty)
-
-Security Result:
-Unapproved option rejected.
-
---------------------------------------------------------------------
-CASE 11: EDITOR / RICH HTML FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Post content, rich editor.
-
-User Input Nature:
-HTML formatting allowed.
-
-Sanitize Function (SAVE):
-wp_kses_post()
-
-Why This Function:
-- Allows safe HTML
-- Removes scripts and dangerous attributes
-
-Escape Function (OUTPUT):
-the_content()
-
-Why:
-- WordPress handles escaping internally
-
-Test Input:
-<script>alert(1)</script><b>Hello</b>
-
-Stored Value:
-<b>Hello</b>
-
-Displayed Output:
-<b>Hello</b>
-
-Security Result:
-Safe HTML preserved, scripts removed.
-
---------------------------------------------------------------------
-CASE 12: USERNAME FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Login identifier.
-
-User Input Nature:
-Restricted characters.
-
-Sanitize Function (SAVE):
-sanitize_user()
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-admin<script>
-
-Stored Value:
-admin
-
-Displayed Output:
-admin
-
-Security Result:
-Invalid characters removed.
-
---------------------------------------------------------------------
-CASE 13: SLUG FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-SEO-friendly URLs.
-
-User Input Nature:
-Text converted to URL-safe format.
-
-Sanitize Function (SAVE):
-sanitize_title()
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-Hello World!!!
-
-Stored Value:
-hello-world
-
-Displayed Output:
-hello-world
-
-Security Result:
-SEO-safe slug generated.
-
---------------------------------------------------------------------
-CASE 14: PHONE NUMBER FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Contact numbers.
-
-User Input Nature:
-Digits only.
-
-Sanitize Function (SAVE):
-preg_replace('/[^0-9]/', '', $phone)
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-+91-99999-88888
-
-Stored Value:
-919999988888
-
-Displayed Output:
-919999988888
-
-Security Result:
-Only numeric data stored.
-
---------------------------------------------------------------------
-CASE 15: DATE FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-DOB, event date.
-
-User Input Nature:
-Specific date format.
-
-Sanitize Function (SAVE):
-sanitize_text_field()
-+ date validation
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-2025-02-30
-
-Stored Value:
-(empty)
-
-Displayed Output:
-(empty)
-
-Security Result:
-Invalid date rejected.
-
---------------------------------------------------------------------
-CASE 16: TIME FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Appointments, schedules.
-
-User Input Nature:
-Time format HH:MM.
-
-Sanitize Function (SAVE):
-sanitize_text_field()
-+ regex validation
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-25:99
-
-Stored Value:
-(empty)
-
-Displayed Output:
-(empty)
-
-Security Result:
-Invalid time blocked.
-
---------------------------------------------------------------------
-CASE 17: FILE NAME
---------------------------------------------------------------------
-
-Field Purpose:
-Uploaded file naming.
-
-User Input Nature:
-Potentially dangerous.
-
-Sanitize Function (SAVE):
-sanitize_file_name()
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-my<script>.php
-
-Stored Value:
-myscript.php
-
-Displayed Output:
-myscript.php
-
-Security Result:
-Unsafe characters removed.
-
---------------------------------------------------------------------
-CASE 18: FILE TYPE VALIDATION
---------------------------------------------------------------------
-
-Field Purpose:
-Secure file uploads.
-
-Sanitize Function (SAVE):
-wp_check_filetype()
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-shell.php
-
-Stored Value:
-Rejected
-
-Security Result:
-Malicious file blocked.
-
---------------------------------------------------------------------
-CASE 19: JSON INPUT
---------------------------------------------------------------------
-
-Field Purpose:
-Complex settings.
-
-Sanitize Function (SAVE):
-wp_unslash()
-json_decode()
-array sanitization
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-{"key":"<script>"}
-
-Stored Value:
-{"key":"script"}
-
-Security Result:
-JSON cleaned safely.
-
---------------------------------------------------------------------
-CASE 20: ARRAY INPUT
---------------------------------------------------------------------
-
-Field Purpose:
-Multiple values.
-
-Sanitize Function (SAVE):
-array_map('sanitize_text_field')
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-["<b>a</b>"]
-
-Stored Value:
-["a"]
-
-Security Result:
-Each value sanitized.
-
---------------------------------------------------------------------
-CASE 21: SEARCH QUERY
---------------------------------------------------------------------
-
-Field Purpose:
-Search input.
-
-Sanitize Function (SAVE):
-sanitize_text_field()
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-<script>search</script>
-
-Stored Value:
-search
-
-Security Result:
-Scripts removed.
-
---------------------------------------------------------------------
-CASE 22: COMMENT FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-User comments.
-
-Sanitize Function (SAVE):
-wp_kses_data()
-
-Escape Function (OUTPUT):
-comment_text()
-
-Security Result:
-Limited HTML allowed safely.
-
---------------------------------------------------------------------
-CASE 23: HTML ATTRIBUTE VALUE
---------------------------------------------------------------------
-
-Field Purpose:
-value="", title=""
-
-Sanitize Function (SAVE):
-sanitize_text_field()
-
-Escape Function (OUTPUT):
-esc_attr()
-
-Test Input:
-" onclick="x
-
-Stored Value:
-onclick=x
-
-Displayed Output:
-&quot;onclick=x
-
-Security Result:
-Attribute injection prevented.
-
---------------------------------------------------------------------
-CASE 24: BOOLEAN FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-True / False options.
-
-Sanitize Function (SAVE):
-(bool) $_POST['field']
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-true
-
-Stored Value:
-1
-
-Security Result:
-Boolean normalized.
-
---------------------------------------------------------------------
-CASE 25: IP ADDRESS FIELD
---------------------------------------------------------------------
-
-Field Purpose:
-Logs, security checks.
-
-Sanitize Function (SAVE):
-filter_var($ip, FILTER_VALIDATE_IP)
-
-Escape Function (OUTPUT):
-esc_html()
-
-Test Input:
-999.999.1.1
-
-Stored Value:
-(empty)
-
-Security Result:
-Invalid IP rejected.
-
-====================================================================
-END OF FILE
-====================================================================
+<?php
+
+function wp_test_output( $label, $original, $processed ) {
+	echo '<pre style="background:#111;color:#0f0;padding:10px;margin:10px 0;">';
+	echo "FUNCTION: {$label}\n";
+	echo "ORIGINAL:\n";
+	var_dump( $original );
+	echo "PROCESSED:\n";
+	var_dump( $processed );
+	echo "</pre>";
+}
+
+function test_wp_kses_post() {
+	$input = '<h1>Title</h1><script>alert(1)</script><p><strong>Bold</strong></p>';
+	wp_test_output( 'wp_kses_post()', $input, wp_kses_post( $input ) );
+}
+add_action( 'init', 'test_wp_kses_post' );
+
+function test_wp_kses_data() {
+	$input = '<div data-id="1" onclick="hack()">Hello</div>';
+	wp_test_output( 'wp_kses_data()', $input, wp_kses_data( $input ) );
+}
+add_action( 'init', 'test_wp_kses_data' );
+
+function test_wp_kses_allowed_html() {
+	wp_test_output( 'wp_kses_allowed_html()', 'allowed', wp_kses_allowed_html( 'post' ) );
+}
+add_action( 'init', 'test_wp_kses_allowed_html' );
+
+function test_sanitize_text_field() {
+	$input = " Hello <b>World</b>\n<script>alert(1)</script> ";
+	wp_test_output( 'sanitize_text_field()', $input, sanitize_text_field( $input ) );
+}
+add_action( 'init', 'test_sanitize_text_field' );
+
+function test_sanitize_email() {
+	$input = ' test@@example.com<script>';
+	wp_test_output( 'sanitize_email()', $input, sanitize_email( $input ) );
+}
+add_action( 'init', 'test_sanitize_email' );
+
+function test_sanitize_title() {
+	$input = 'Hello World @ 2025!';
+	wp_test_output( 'sanitize_title()', $input, sanitize_title( $input ) );
+}
+add_action( 'init', 'test_sanitize_title' );
+
+function test_sanitize_term() {
+	wp_test_output(
+		'sanitize_term()',
+		' My <b>Category</b> ',
+		sanitize_term( ' My <b>Category</b> ', 'category', 'db' )
+	);
+}
+add_action( 'init', 'test_sanitize_term' );
+
+function test_sanitize_title_with_dashes() {
+	$input = 'Hello World PHP & WP';
+	wp_test_output( 'sanitize_title_with_dashes()', $input, sanitize_title_with_dashes( $input ) );
+}
+add_action( 'init', 'test_sanitize_title_with_dashes' );
+
+function test_sanitize_textarea_field() {
+	$input = "Line1\n<script>alert(1)</script>\nLine2";
+	wp_test_output( 'sanitize_textarea_field()', $input, sanitize_textarea_field( $input ) );
+}
+add_action( 'init', 'test_sanitize_textarea_field' );
+
+function test_sanitize_user() {
+	$input = ' admin<script> ';
+	wp_test_output( 'sanitize_user()', $input, sanitize_user( $input, true ) );
+}
+add_action( 'init', 'test_sanitize_user' );
+
+function test_sanitize_key() {
+	$input = 'My_Custom-Key!';
+	wp_test_output( 'sanitize_key()', $input, sanitize_key( $input ) );
+}
+add_action( 'init', 'test_sanitize_key' );
+
+function test_sanitize_file_name() {
+	$input = 'my file<script>.jpg';
+	wp_test_output( 'sanitize_file_name()', $input, sanitize_file_name( $input ) );
+}
+add_action( 'init', 'test_sanitize_file_name' );
+
+function test_esc_url() {
+	$input = 'javascript:alert(1)';
+	wp_test_output( 'esc_url()', $input, esc_url( $input ) );
+}
+add_action( 'init', 'test_esc_url' );
+
+function test_esc_url_raw() {
+	$input = 'https://example.com/<script>';
+	wp_test_output( 'esc_url_raw()', $input, esc_url_raw( $input ) );
+}
+add_action( 'init', 'test_esc_url_raw' );
+
+function test_esc_attr() {
+	$input = '" onclick="alert(1)';
+	wp_test_output( 'esc_attr()', $input, esc_attr( $input ) );
+}
+add_action( 'init', 'test_esc_attr' );
+
+function test_esc_attr__() {
+	wp_test_output( 'esc_attr__()', 'Hello <b>World</b>', esc_attr__( 'Hello <b>World</b>', 'textdomain' ) );
+}
+add_action( 'init', 'test_esc_attr__' );
+
+function test_esc_html() {
+	$input = '<b>Hello</b>';
+	wp_test_output( 'esc_html()', $input, esc_html( $input ) );
+}
+add_action( 'init', 'test_esc_html' );
+
+function test_esc_html__() {
+	wp_test_output( 'esc_html__()', 'Hello <i>World</i>', esc_html__( 'Hello <i>World</i>', 'textdomain' ) );
+}
+add_action( 'init', 'test_esc_html__' );
+
+function test_esc_textarea() {
+	$input = "Hello\n<script>alert(1)</script>";
+	wp_test_output( 'esc_textarea()', $input, esc_textarea( $input ) );
+}
+add_action( 'init', 'test_esc_textarea' );
+
+function test_esc_js() {
+	$input = 'alert("XSS")';
+	wp_test_output( 'esc_js()', $input, esc_js( $input ) );
+}
+add_action( 'init', 'test_esc_js' );
+
+function test_esc_sql() {
+	global $wpdb;
+	$input = "1' OR '1'='1";
+	wp_test_output( 'esc_sql()', $input, esc_sql( $input ) );
+}
+add_action( 'admin_init', 'test_esc_sql' );
+
+function test_wp_specialchars_decode() {
+	$input = '&lt;b&gt;Hello&lt;/b&gt;';
+	wp_test_output( 'wp_specialchars_decode()', $input, wp_specialchars_decode( $input ) );
+}
+add_action( 'init', 'test_wp_specialchars_decode' );
+
+function test_wp_strip_all_tags() {
+	$input = '<p>Hello <b>World</b><script>alert(1)</script></p>';
+	wp_test_output( 'wp_strip_all_tags()', $input, wp_strip_all_tags( $input ) );
+}
+add_action( 'init', 'test_wp_strip_all_tags' );
+
+function my_handle_form_submission() {
+	if ( ! isset( $_POST['my_form_submit'] ) ) {
+		return;
+	}
+	update_option( 'my_username', sanitize_text_field( $_POST['username'] ) );
+	update_option( 'my_message', sanitize_textarea_field( $_POST['message'] ) );
+	update_option( 'my_email', sanitize_email( $_POST['email'] ) );
+	update_option( 'my_website', esc_url_raw( $_POST['website'] ) );
+	update_option( 'my_editor_content', wp_kses_post( $_POST['editor_content'] ) );
+}
+add_action( 'init', 'my_handle_form_submission' );
+
+function my_display_data() {
+	echo '<p>' . esc_html( get_option( 'my_username' ) ) . '</p>';
+	echo '<textarea>' . esc_textarea( get_option( 'my_message' ) ) . '</textarea>';
+	echo '<p><a href="mailto:' . esc_attr( get_option( 'my_email' ) ) . '">' . esc_html( get_option( 'my_email' ) ) . '</a></p>';
+	echo '<p><a href="' . esc_url( get_option( 'my_website' ) ) . '">Visit</a></p>';
+	echo get_option( 'my_editor_content' );
+}
+add_action( 'wp_footer', 'my_display_data' );
+
+function my_safe_post_title( $title ) {
+	return esc_html( $title );
+}
+add_filter( 'the_title', 'my_safe_post_title' );
+
+function my_user_data_example() {
+	update_option( 'my_user_slug', sanitize_title( 'Hello World PHP & WP' ) );
+	update_option( 'my_user_key', sanitize_key( 'My_Custom-Key!' ) );
+}
+add_action( 'init', 'my_user_data_example' );
+
+function my_safe_sql_example() {
+	global $wpdb;
+	if ( isset( $_GET['username'] ) ) {
+		$wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM $wpdb->users WHERE user_login = %s",
+				$_GET['username']
+			)
+		);
+	}
+}
+add_action( 'admin_init', 'my_safe_sql_example' );
+
+function my_cleanup_examples() {
+	update_option( 'my_clean_text', wp_strip_all_tags( '<p>Hello <b>World</b></p>' ) );
+	update_option( 'my_decoded_text', wp_specialchars_decode( '&lt;b&gt;Bold&lt;/b&gt;' ) );
+}
+add_action( 'init', 'my_cleanup_examples' );
