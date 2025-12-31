@@ -1,331 +1,131 @@
 
 
-PLUGIN NAME: my-book-post
-PURPOSE: Create a Custom Post Type (Books) in WordPress using MVC architecture with autoloading.
-FORMAT: Single text file documentation (detailed)
-STANDARD: WordPress Coding Standards + OOP + MVC
-====================================================================
 
 
-1. OVERVIEW
---------------------------------------------------------------------
-This plugin creates a Custom Post Type called "Book" in the WordPress
-Admin Panel and displays the added books on the frontend using a
-shortcode.
+No MVC
+No autoloading
+No classes
+No extra files
 
-Key rules followed:
-- MVC (Model–View–Controller) architecture
-- Main plugin file contains NO business logic
-- Autoloading for classes
-- Namespaces used
-- Clean, scalable structure
-- Beginner-friendly and extendable
+This approach is best for:
+- Beginners
+- Small projects
+- Learning WordPress fundamentals
+- Quick implementation
 
 
-2. PLUGIN DIRECTORY STRUCTURE
---------------------------------------------------------------------
-Location:
-wp-content/plugins/my-book-post/
+2. FILE STRUCTURE
 
-Folder & file layout:
-
-my-book-post/
+your-child-theme/
 │
-├── my-book-post.php        -> Main plugin file (ONLY plugin info)
-├── autoload.php            -> Handles constants + class autoloading
-│
-├── app/
-│   ├── Controllers/
-│   │   └── BookController.php
-│   │
-│   ├── Models/
-│   │   └── BookModel.php
-│   │
-│   └── Views/
-│       └── book-list.php
-│
-├── routes/
-│   └── web.php
-│
-└── assets/
-    └── css/
+└── functions.php
 
 
-3. MAIN PLUGIN FILE (NO LOGIC)
---------------------------------------------------------------------
-File: my-book-post.php
-
-Purpose:
-- Define plugin metadata
-- Load autoload.php only
-- NO actions, filters, functions, or classes
-
-Code:
-
-<?php
-/**
- * Plugin Name: My Book Post
- * Plugin URI: https://example.com
- * Description: Custom Book Post Type plugin using MVC architecture
- * Version: 1.0.0
- * Author: Your Name
- * Author URI: https://example.com
- * Text Domain: my-book-post
- * Domain Path: /languages
- */
-
-defined('ABSPATH') || exit;
-
-require_once plugin_dir_path(__FILE__) . 'autoload.php';
-
-
-Why this is correct:
-- WordPress best practice
-- Keeps plugin bootstrapping clean
-- All logic is handled elsewhere
-
-
-4. AUTOLOAD FILE (CORE OF PLUGIN)
---------------------------------------------------------------------
-File: autoload.php
-
-Purpose:
-- Define reusable constants
-- Automatically load classes
-- Initialize routes
-
-Code:
-
-<?php
-
-defined('ABSPATH') || exit;
-
-/* Plugin Constants */
-define('MBP_PATH', plugin_dir_path(__FILE__));
-define('MBP_URL', plugin_dir_url(__FILE__));
-
-/* Autoload Classes */
-spl_autoload_register(function ($class) {
-
-    $namespace = 'MBP\\';
-
-    if (strpos($class, $namespace) !== 0) {
-        return;
-    }
-
-    $class = str_replace($namespace, '', $class);
-    $class = str_replace('\\', '/', $class);
-
-    $file = MBP_PATH . 'app/' . $class . '.php';
-
-    if (file_exists($file)) {
-        require_once $file;
-    }
-});
-
-/* Load Routes */
-require_once MBP_PATH . 'routes/web.php';
-
-
-Explanation:
-- Uses namespace prefix MBP\
-- Maps namespace to app/ directory
-- Loads Controllers, Models automatically
-- Keeps main plugin file clean
-
-
-5. MODEL (DATA LAYER)
---------------------------------------------------------------------
-File: app/Models/BookModel.php
+3. FUNCTIONS.PHP
 
 Responsibility:
-- Handle data-related logic
-- Register Custom Post Type
-- No HTML
-- No WordPress hooks directly
+- Register Book Custom Post Type
+- Register Shortcode
+- Display Books on frontend
 
 Code:
 
 <?php
 
-namespace MBP\Models;
-
 defined('ABSPATH') || exit;
 
-class BookModel
-{
-    public static function register_post_type()
-    {
-        register_post_type('book', [
-            'labels' => [
-                'name'          => __('Books', 'my-book-post'),
-                'singular_name' => __('Book', 'my-book-post'),
-                'add_new'       => __('Add New Book', 'my-book-post'),
-                'edit_item'     => __('Edit Book', 'my-book-post'),
-            ],
-            'public'        => true,
-            'menu_icon'     => 'dashicons-book',
-            'has_archive'   => true,
-            'rewrite'       => ['slug' => 'books'],
-            'supports'      => ['title', 'editor', 'thumbnail'],
-            'show_in_rest'  => true,
-        ]);
-    }
+function register_book_post_type() {
+
+	register_post_type('book', array(
+		'labels' => array(
+			'name'          => 'Books',
+			'singular_name' => 'Book',
+			'add_new'       => 'Add New Book',
+			'edit_item'     => 'Edit Book',
+		),
+		'public'        => true,
+		'menu_icon'     => 'dashicons-book',
+		'has_archive'   => true,
+		'rewrite'       => array('slug' => 'books'),
+		'supports'      => array('title', 'editor', 'thumbnail'),
+		'show_in_rest'  => true
+	));
 }
-
-Why this is Model:
-- Handles only post type definition
-- Can be reused or extended
-- Clean separation of concerns
+add_action('init', 'register_book_post_type');
 
 
-6. CONTROLLER (LOGIC LAYER)
---------------------------------------------------------------------
-File: app/Controllers/BookController.php
+function book_list_shortcode() {
 
-Responsibility:
-- Connect Model and View
-- Handle WordPress hooks
-- Process frontend display logic
+	ob_start();
 
-Code:
+	$query = new WP_Query(array(
+		'post_type'      => 'book',
+		'posts_per_page' => -1
+	));
 
-<?php
+	if ($query->have_posts()) {
 
-namespace MBP\Controllers;
+		echo '<div class="book-list">';
 
-use MBP\Models\BookModel;
+		while ($query->have_posts()) {
+			$query->the_post();
 
-defined('ABSPATH') || exit;
+			echo '<div class="book-item">';
+			echo '<h3>' . esc_html(get_the_title()) . '</h3>';
+			echo '<div>' . get_the_content() . '</div>';
+			echo '</div>';
+		}
 
-class BookController
-{
-    public function __construct()
-    {
-        add_action('init', [$this, 'register_post_type']);
-        add_shortcode('book_list', [$this, 'render_books']);
-    }
+		echo '</div>';
 
-    public function register_post_type()
-    {
-        BookModel::register_post_type();
-    }
+	} else {
+		echo '<p>No books found</p>';
+	}
 
-    public function render_books()
-    {
-        ob_start();
+	wp_reset_postdata();
 
-        $query = new \WP_Query([
-            'post_type'      => 'book',
-            'posts_per_page' => -1,
-        ]);
-
-        include MBP_PATH . 'app/Views/book-list.php';
-
-        wp_reset_postdata();
-        return ob_get_clean();
-    }
+	return ob_get_clean();
 }
-
-Why this is Controller:
-- Controls plugin behavior
-- Uses Model for data
-- Sends data to View
-- Registers hooks & shortcodes
+add_shortcode('book_list', 'book_list_shortcode');
 
 
-7. VIEW (PRESENTATION LAYER)
---------------------------------------------------------------------
-File: app/Views/book-list.php
+4. FRONTEND USAGE
 
-Responsibility:
-- Display output
-- No database queries
-- No business logic
-
-Code:
-
-<?php defined('ABSPATH') || exit; ?>
-
-<div class="book-list">
-    <?php if ($query->have_posts()) : ?>
-        <?php while ($query->have_posts()) : $query->the_post(); ?>
-            <div class="book-item">
-                <h3><?php the_title(); ?></h3>
-                <div><?php the_content(); ?></div>
-            </div>
-        <?php endwhile; ?>
-    <?php else : ?>
-        <p><?php _e('No books found', 'my-book-post'); ?></p>
-    <?php endif; ?>
-</div>
-
-Why this is View:
-- Only HTML + minimal PHP
-- Reusable UI
-- Easy to style later
-
-
-8. ROUTES FILE (BOOTSTRAP CONTROLLERS)
---------------------------------------------------------------------
-File: routes/web.php
-
-Purpose:
-- Central place to initialize controllers
-- Keeps autoload clean
-
-Code:
-
-<?php
-
-use MBP\Controllers\BookController;
-
-defined('ABSPATH') || exit;
-
-new BookController();
-
-
-9. FRONTEND DISPLAY
---------------------------------------------------------------------
 Shortcode:
 [book_list]
 
-Usage:
-- Add shortcode to any Page or Post
-- Displays all Books
-- Uses MVC internally
+Where to use:
+- Any Page
+- Any Post
+- Gutenberg Shortcode block
 
 
-10. ADMIN PANEL RESULT
---------------------------------------------------------------------
-After plugin activation:
-- New menu appears: "Books"
+5. ADMIN PANEL RESULT
+
+After child theme activation:
+- "Books" menu appears in admin
 - Add / Edit / Delete books
-- Supports Gutenberg editor
-- Archive URL: /books
+- Supports block editor
+- Archive available at /books
 
 
-11. WHY THIS STRUCTURE IS STANDARD
---------------------------------------------------------------------
-✔ MVC architecture
-✔ Autoloading
-✔ Namespaces
-✔ No logic in main file
-✔ WordPress Coding Standards
-✔ Scalable & maintainable
-✔ Beginner-friendly
+6. WHY THIS APPROACH IS CORRECT
+
+- No unnecessary complexity
+- Uses core WordPress APIs
+- Easy to debug
+- Easy to extend later
+- Ideal learning foundation
 
 
-12. FUTURE ENHANCEMENTS (OPTIONAL)
---------------------------------------------------------------------
-- Custom Taxonomy (Genre)
-- Custom Meta Fields (Author, Price)
-- Pagination on frontend
-- Admin settings page
-- REST API endpoints
-- CSS & JS enqueue via controller
+7. OPTIONAL NEXT STEPS
+
+- Add custom taxonomy (Genre)
+- Add custom fields (Author, Price)
+- Add pagination
+- Add CSS styling
+- Convert to plugin later
 
 
 END OF FILE
-====================================================================
-
+================================================================================
