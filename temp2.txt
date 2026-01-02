@@ -1,131 +1,369 @@
 
 
+PLUGIN NAME: simple-user-manager
+FILE: simple-user-manager.php
+PURPOSE: User Management with Roles (Add / Update / Delete)
+STANDARD: WordPress Core APIs
+====================================================================
 
-
-No MVC
-No autoloading
-No classes
-No extra files
-
-This approach is best for:
-- Beginners
-- Small projects
-- Learning WordPress fundamentals
-- Quick implementation
-
-
-2. FILE STRUCTURE
-
-your-child-theme/
-│
-└── functions.php
-
-
-3. FUNCTIONS.PHP
-
-Responsibility:
-- Register Book Custom Post Type
-- Register Shortcode
-- Display Books on frontend
-
-Code:
+--------------------------------------------------------------------
+1. PLUGIN HEADER
+--------------------------------------------------------------------
 
 <?php
+/*
+Plugin Name: Simple User Manager
+Description: User management with roles using WordPress core APIs.
+Version: 1.1
+Author: Your Name
+*/
 
-defined('ABSPATH') || exit;
+--------------------------------------------------------------------
+2. SECURITY CHECK
+--------------------------------------------------------------------
 
-function register_book_post_type() {
-
-	register_post_type('book', array(
-		'labels' => array(
-			'name'          => 'Books',
-			'singular_name' => 'Book',
-			'add_new'       => 'Add New Book',
-			'edit_item'     => 'Edit Book',
-		),
-		'public'        => true,
-		'menu_icon'     => 'dashicons-book',
-		'has_archive'   => true,
-		'rewrite'       => array('slug' => 'books'),
-		'supports'      => array('title', 'editor', 'thumbnail'),
-		'show_in_rest'  => true
-	));
+if ( ! defined('ABSPATH') ) {
+    exit;
 }
-add_action('init', 'register_book_post_type');
 
+--------------------------------------------------------------------
+3. REGISTER ADMIN MENU
+--------------------------------------------------------------------
 
-function book_list_shortcode() {
+add_action('admin_menu', 'sum_register_menu');
 
-	ob_start();
+function sum_register_menu() {
 
-	$query = new WP_Query(array(
-		'post_type'      => 'book',
-		'posts_per_page' => -1
-	));
+    if ( ! current_user_can('manage_users') ) {
+        return;
+    }
 
-	if ($query->have_posts()) {
+    add_menu_page(
+        'User Manager',
+        'User Manager',
+        'manage_users',
+        'sum-user-manager',
+        'sum_add_user_page'
+    );
 
-		echo '<div class="book-list">';
+    add_submenu_page(
+        'sum-user-manager',
+        'Add User',
+        'Add User',
+        'manage_users',
+        'sum-add-user',
+        'sum_add_user_page'
+    );
 
-		while ($query->have_posts()) {
-			$query->the_post();
+    add_submenu_page(
+        'sum-user-manager',
+        'Update User',
+        'Update User',
+        'manage_users',
+        'sum-update-user',
+        'sum_update_user_page'
+    );
 
-			echo '<div class="book-item">';
-			echo '<h3>' . esc_html(get_the_title()) . '</h3>';
-			echo '<div>' . get_the_content() . '</div>';
-			echo '</div>';
-		}
-
-		echo '</div>';
-
-	} else {
-		echo '<p>No books found</p>';
-	}
-
-	wp_reset_postdata();
-
-	return ob_get_clean();
+    add_submenu_page(
+        'sum-user-manager',
+        'Delete User',
+        'Delete User',
+        'manage_users',
+        'sum-delete-user',
+        'sum_delete_user_page'
+    );
 }
-add_shortcode('book_list', 'book_list_shortcode');
 
+--------------------------------------------------------------------
+4. COMMON PERMISSION CHECK
+--------------------------------------------------------------------
 
-4. FRONTEND USAGE
+function sum_check_permission() {
+    if ( ! current_user_can('manage_users') ) {
+        wp_die('Access denied');
+    }
+}
 
-Shortcode:
-[book_list]
+--------------------------------------------------------------------
+5. GET ALL ROLES (FOR DROPDOWN)
+--------------------------------------------------------------------
 
-Where to use:
-- Any Page
-- Any Post
-- Gutenberg Shortcode block
+function sum_get_roles() {
+    global $wp_roles;
+    return $wp_roles->roles;
+}
 
+--------------------------------------------------------------------
+6. ADD USER PAGE (WITH ROLE)
+--------------------------------------------------------------------
 
-5. ADMIN PANEL RESULT
+function sum_add_user_page() {
+    sum_check_permission();
+    $roles = sum_get_roles();
+    ?>
 
-After child theme activation:
-- "Books" menu appears in admin
-- Add / Edit / Delete books
-- Supports block editor
-- Archive available at /books
+    <div class="wrap">
+        <h2>Add User</h2>
 
+        <?php sum_show_notice(); ?>
 
-6. WHY THIS APPROACH IS CORRECT
+        <form method="post">
+            <?php wp_nonce_field('sum_add_user_action', 'sum_add_user_nonce'); ?>
 
-- No unnecessary complexity
-- Uses core WordPress APIs
-- Easy to debug
-- Easy to extend later
-- Ideal learning foundation
+            <table class="form-table">
+                <tr>
+                    <th>Username</th>
+                    <td><input type="text" name="username" required></td>
+                </tr>
+                <tr>
+                    <th>Email</th>
+                    <td><input type="email" name="email" required></td>
+                </tr>
+                <tr>
+                    <th>Password</th>
+                    <td><input type="password" name="password" required></td>
+                </tr>
+                <tr>
+                    <th>Role</th>
+                    <td>
+                        <select name="role" required>
+                            <?php foreach ( $roles as $key => $role ) : ?>
+                                <option value="<?php echo esc_attr($key); ?>">
+                                    <?php echo esc_html($role['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+                </tr>
+            </table>
 
+            <input type="submit" name="sum_add_user_submit" class="button button-primary" value="Add User">
+        </form>
+    </div>
 
-7. OPTIONAL NEXT STEPS
+    <?php
+}
 
-- Add custom taxonomy (Genre)
-- Add custom fields (Author, Price)
-- Add pagination
-- Add CSS styling
-- Convert to plugin later
+--------------------------------------------------------------------
+7. PROCESS ADD USER (WITH ROLE)
+--------------------------------------------------------------------
 
+add_action('admin_init', 'sum_handle_add_user');
 
-END OF FILE
-================================================================================
+function sum_handle_add_user() {
+
+    if ( ! isset($_POST['sum_add_user_submit']) ) {
+        return;
+    }
+
+    if ( ! wp_verify_nonce($_POST['sum_add_user_nonce'], 'sum_add_user_action') ) {
+        wp_die('Security check failed');
+    }
+
+    if ( ! current_user_can('manage_users') ) {
+        wp_die('Unauthorized');
+    }
+
+    $username = sanitize_user($_POST['username']);
+    $email    = sanitize_email($_POST['email']);
+    $password = sanitize_text_field($_POST['password']);
+    $role     = sanitize_text_field($_POST['role']);
+
+    if ( empty($username) || empty($email) || empty($password) ) {
+        sum_set_notice('All fields required', 'error');
+        return;
+    }
+
+    if ( username_exists($username) || email_exists($email) ) {
+        sum_set_notice('User already exists', 'error');
+        return;
+    }
+
+    $user_id = wp_create_user($username, $password, $email);
+
+    if ( is_wp_error($user_id) ) {
+        sum_set_notice($user_id->get_error_message(), 'error');
+        return;
+    }
+
+    $user = new WP_User($user_id);
+    $user->set_role($role);
+
+    sum_set_notice('User created successfully', 'success');
+}
+
+--------------------------------------------------------------------
+8. UPDATE USER PAGE (WITH ROLE)
+--------------------------------------------------------------------
+
+function sum_update_user_page() {
+    sum_check_permission();
+    $roles = sum_get_roles();
+    ?>
+
+    <div class="wrap">
+        <h2>Update User</h2>
+
+        <?php sum_show_notice(); ?>
+
+        <form method="post">
+            <?php wp_nonce_field('sum_update_user_action', 'sum_update_user_nonce'); ?>
+
+            <table class="form-table">
+                <tr>
+                    <th>User ID</th>
+                    <td><input type="number" name="user_id" required></td>
+                </tr>
+                <tr>
+                    <th>Email</th>
+                    <td><input type="email" name="email"></td>
+                </tr>
+                <tr>
+                    <th>Password</th>
+                    <td><input type="password" name="password"></td>
+                </tr>
+                <tr>
+                    <th>Role</th>
+                    <td>
+                        <select name="role">
+                            <option value="">-- No Change --</option>
+                            <?php foreach ( $roles as $key => $role ) : ?>
+                                <option value="<?php echo esc_attr($key); ?>">
+                                    <?php echo esc_html($role['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+                </tr>
+            </table>
+
+            <input type="submit" name="sum_update_user_submit" class="button button-primary" value="Update User">
+        </form>
+    </div>
+
+    <?php
+}
+
+--------------------------------------------------------------------
+9. PROCESS UPDATE USER (WITH ROLE)
+--------------------------------------------------------------------
+
+add_action('admin_init', 'sum_handle_update_user');
+
+function sum_handle_update_user() {
+
+    if ( ! isset($_POST['sum_update_user_submit']) ) {
+        return;
+    }
+
+    if ( ! wp_verify_nonce($_POST['sum_update_user_nonce'], 'sum_update_user_action') ) {
+        wp_die('Security check failed');
+    }
+
+    if ( ! current_user_can('manage_users') ) {
+        wp_die('Unauthorized');
+    }
+
+    $user_id = intval($_POST['user_id']);
+    $email   = sanitize_email($_POST['email']);
+    $pass    = sanitize_text_field($_POST['password']);
+    $role    = sanitize_text_field($_POST['role']);
+
+    $user = get_user_by('ID', $user_id);
+
+    if ( ! $user ) {
+        sum_set_notice('User not found', 'error');
+        return;
+    }
+
+    $data = array('ID' => $user_id);
+
+    if ( ! empty($email) ) {
+        $data['user_email'] = $email;
+    }
+
+    if ( ! empty($pass) ) {
+        $data['user_pass'] = $pass;
+    }
+
+    wp_update_user($data);
+
+    if ( ! empty($role) ) {
+        $user->set_role($role);
+    }
+
+    sum_set_notice('User updated successfully', 'success');
+}
+
+--------------------------------------------------------------------
+10. DELETE USER (UNCHANGED)
+--------------------------------------------------------------------
+
+function sum_delete_user_page() {
+    sum_check_permission();
+    ?>
+
+    <div class="wrap">
+        <h2>Delete User</h2>
+
+        <?php sum_show_notice(); ?>
+
+        <form method="post">
+            <?php wp_nonce_field('sum_delete_user_action', 'sum_delete_user_nonce'); ?>
+            <input type="number" name="user_id" required>
+            <input type="submit" name="sum_delete_user_submit" class="button button-danger" value="Delete User">
+        </form>
+    </div>
+
+    <?php
+}
+
+add_action('admin_init', 'sum_handle_delete_user');
+
+function sum_handle_delete_user() {
+
+    if ( ! isset($_POST['sum_delete_user_submit']) ) {
+        return;
+    }
+
+    if ( ! wp_verify_nonce($_POST['sum_delete_user_nonce'], 'sum_delete_user_action') ) {
+        wp_die('Security check failed');
+    }
+
+    if ( ! current_user_can('manage_users') ) {
+        wp_die('Unauthorized');
+    }
+
+    $user_id = intval($_POST['user_id']);
+
+    if ( ! get_user_by('ID', $user_id) ) {
+        sum_set_notice('User not found', 'error');
+        return;
+    }
+
+    wp_delete_user($user_id);
+    sum_set_notice('User deleted successfully', 'success');
+}
+
+--------------------------------------------------------------------
+11. ADMIN NOTICE SYSTEM
+--------------------------------------------------------------------
+
+function sum_set_notice($msg, $type) {
+    set_transient('sum_notice', array(
+        'message' => $msg,
+        'type'    => $type
+    ), 30);
+}
+
+function sum_show_notice() {
+    $notice = get_transient('sum_notice');
+    if ( $notice ) {
+        echo '<div class="notice notice-' . esc_attr($notice['type']) . '"><p>' . esc_html($notice['message']) . '</p></div>';
+        delete_transient('sum_notice');
+    }
+}
+
+====================================================================
+END
+====================================================================
