@@ -1,82 +1,65 @@
 
 
-PLUGIN NAME: simple-user-manager
-FILE: simple-user-manager.php
-PURPOSE: User Management with Roles (Add / Update / Delete)
-STANDARD: WordPress Core APIs
-====================================================================
-
---------------------------------------------------------------------
-1. PLUGIN HEADER
---------------------------------------------------------------------
 
 <?php
 /*
 Plugin Name: Simple User Manager
-Description: User management with roles using WordPress core APIs.
-Version: 1.1
+Description: User management (Add / Update / Delete) with AJAX – single file architecture.
+Version: 3.0
 Author: Your Name
 */
 
---------------------------------------------------------------------
-2. SECURITY CHECK
---------------------------------------------------------------------
+if ( ! defined('ABSPATH') ) exit;
 
-if ( ! defined('ABSPATH') ) {
-    exit;
-}
-
---------------------------------------------------------------------
-3. REGISTER ADMIN MENU
---------------------------------------------------------------------
+====================================================================
+1. ADMIN MENU
+====================================================================
 
 add_action('admin_menu', 'sum_register_menu');
 
 function sum_register_menu() {
 
-    if ( ! current_user_can('manage_users') ) {
-        return;
-    }
+    if ( ! current_user_can('manage_users') ) return;
 
     add_menu_page(
         'User Manager',
         'User Manager',
         'manage_users',
-        'sum-user-manager',
-        'sum_add_user_page'
+        'sum-add-user',
+        'sum_view_add_user'
     );
 
     add_submenu_page(
-        'sum-user-manager',
+        'sum-add-user',
         'Add User',
         'Add User',
         'manage_users',
         'sum-add-user',
-        'sum_add_user_page'
+        'sum_view_add_user'
     );
 
     add_submenu_page(
-        'sum-user-manager',
+        'sum-add-user',
         'Update User',
         'Update User',
         'manage_users',
         'sum-update-user',
-        'sum_update_user_page'
+        'sum_view_update_user'
     );
 
     add_submenu_page(
-        'sum-user-manager',
+        'sum-add-user',
         'Delete User',
         'Delete User',
         'manage_users',
         'sum-delete-user',
-        'sum_delete_user_page'
+        'sum_view_delete_user'
     );
 }
 
---------------------------------------------------------------------
-4. COMMON PERMISSION CHECK
---------------------------------------------------------------------
+====================================================================
+2. COMMON HELPERS (functions.php style)
+====================================================================
 
 function sum_check_permission() {
     if ( ! current_user_can('manage_users') ) {
@@ -84,286 +67,178 @@ function sum_check_permission() {
     }
 }
 
---------------------------------------------------------------------
-5. GET ALL ROLES (FOR DROPDOWN)
---------------------------------------------------------------------
-
-function sum_get_roles() {
-    global $wp_roles;
-    return $wp_roles->roles;
+function sum_nonce_field() {
+    return wp_create_nonce('sum_user_nonce');
 }
 
---------------------------------------------------------------------
-6. ADD USER PAGE (WITH ROLE)
---------------------------------------------------------------------
+====================================================================
+3. CONTROLLER (SINGLE ENTRY POINT)
+====================================================================
 
-function sum_add_user_page() {
+add_action('wp_ajax_sum_user_controller', 'sum_user_controller');
+
+function sum_user_controller() {
+
     sum_check_permission();
-    $roles = sum_get_roles();
-    ?>
+    check_ajax_referer('sum_user_nonce', 'nonce');
 
-    <div class="wrap">
-        <h2>Add User</h2>
+    $type = sanitize_text_field($_POST['type']);
 
-        <?php sum_show_notice(); ?>
+    switch ($type) {
+        case 'add':
+            sum_add_user();
+            break;
 
-        <form method="post">
-            <?php wp_nonce_field('sum_add_user_action', 'sum_add_user_nonce'); ?>
+        case 'update':
+            sum_update_user();
+            break;
 
-            <table class="form-table">
-                <tr>
-                    <th>Username</th>
-                    <td><input type="text" name="username" required></td>
-                </tr>
-                <tr>
-                    <th>Email</th>
-                    <td><input type="email" name="email" required></td>
-                </tr>
-                <tr>
-                    <th>Password</th>
-                    <td><input type="password" name="password" required></td>
-                </tr>
-                <tr>
-                    <th>Role</th>
-                    <td>
-                        <select name="role" required>
-                            <?php foreach ( $roles as $key => $role ) : ?>
-                                <option value="<?php echo esc_attr($key); ?>">
-                                    <?php echo esc_html($role['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </td>
-                </tr>
-            </table>
+        case 'delete':
+            sum_delete_user();
+            break;
 
-            <input type="submit" name="sum_add_user_submit" class="button button-primary" value="Add User">
-        </form>
-    </div>
-
-    <?php
+        default:
+            wp_send_json_error('Invalid action');
+    }
 }
 
---------------------------------------------------------------------
-7. PROCESS ADD USER (WITH ROLE)
---------------------------------------------------------------------
+====================================================================
+4. CONTROLLER ACTIONS
+====================================================================
 
-add_action('admin_init', 'sum_handle_add_user');
-
-function sum_handle_add_user() {
-
-    if ( ! isset($_POST['sum_add_user_submit']) ) {
-        return;
-    }
-
-    if ( ! wp_verify_nonce($_POST['sum_add_user_nonce'], 'sum_add_user_action') ) {
-        wp_die('Security check failed');
-    }
-
-    if ( ! current_user_can('manage_users') ) {
-        wp_die('Unauthorized');
-    }
+function sum_add_user() {
 
     $username = sanitize_user($_POST['username']);
     $email    = sanitize_email($_POST['email']);
     $password = sanitize_text_field($_POST['password']);
-    $role     = sanitize_text_field($_POST['role']);
 
     if ( empty($username) || empty($email) || empty($password) ) {
-        sum_set_notice('All fields required', 'error');
-        return;
+        wp_send_json_error('All fields are required');
     }
 
     if ( username_exists($username) || email_exists($email) ) {
-        sum_set_notice('User already exists', 'error');
-        return;
+        wp_send_json_error('User already exists');
     }
 
     $user_id = wp_create_user($username, $password, $email);
 
     if ( is_wp_error($user_id) ) {
-        sum_set_notice($user_id->get_error_message(), 'error');
-        return;
+        wp_send_json_error($user_id->get_error_message());
     }
 
-    $user = new WP_User($user_id);
-    $user->set_role($role);
-
-    sum_set_notice('User created successfully', 'success');
+    wp_send_json_success('User added successfully');
 }
 
---------------------------------------------------------------------
-8. UPDATE USER PAGE (WITH ROLE)
---------------------------------------------------------------------
-
-function sum_update_user_page() {
-    sum_check_permission();
-    $roles = sum_get_roles();
-    ?>
-
-    <div class="wrap">
-        <h2>Update User</h2>
-
-        <?php sum_show_notice(); ?>
-
-        <form method="post">
-            <?php wp_nonce_field('sum_update_user_action', 'sum_update_user_nonce'); ?>
-
-            <table class="form-table">
-                <tr>
-                    <th>User ID</th>
-                    <td><input type="number" name="user_id" required></td>
-                </tr>
-                <tr>
-                    <th>Email</th>
-                    <td><input type="email" name="email"></td>
-                </tr>
-                <tr>
-                    <th>Password</th>
-                    <td><input type="password" name="password"></td>
-                </tr>
-                <tr>
-                    <th>Role</th>
-                    <td>
-                        <select name="role">
-                            <option value="">-- No Change --</option>
-                            <?php foreach ( $roles as $key => $role ) : ?>
-                                <option value="<?php echo esc_attr($key); ?>">
-                                    <?php echo esc_html($role['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </td>
-                </tr>
-            </table>
-
-            <input type="submit" name="sum_update_user_submit" class="button button-primary" value="Update User">
-        </form>
-    </div>
-
-    <?php
-}
-
---------------------------------------------------------------------
-9. PROCESS UPDATE USER (WITH ROLE)
---------------------------------------------------------------------
-
-add_action('admin_init', 'sum_handle_update_user');
-
-function sum_handle_update_user() {
-
-    if ( ! isset($_POST['sum_update_user_submit']) ) {
-        return;
-    }
-
-    if ( ! wp_verify_nonce($_POST['sum_update_user_nonce'], 'sum_update_user_action') ) {
-        wp_die('Security check failed');
-    }
-
-    if ( ! current_user_can('manage_users') ) {
-        wp_die('Unauthorized');
-    }
+function sum_update_user() {
 
     $user_id = intval($_POST['user_id']);
     $email   = sanitize_email($_POST['email']);
     $pass    = sanitize_text_field($_POST['password']);
-    $role    = sanitize_text_field($_POST['role']);
 
-    $user = get_user_by('ID', $user_id);
-
-    if ( ! $user ) {
-        sum_set_notice('User not found', 'error');
-        return;
+    if ( ! get_user_by('ID', $user_id) ) {
+        wp_send_json_error('User not found');
     }
 
-    $data = array('ID' => $user_id);
+    $data = ['ID' => $user_id];
 
-    if ( ! empty($email) ) {
-        $data['user_email'] = $email;
-    }
-
-    if ( ! empty($pass) ) {
-        $data['user_pass'] = $pass;
-    }
+    if ( $email ) $data['user_email'] = $email;
+    if ( $pass )  $data['user_pass']  = $pass;
 
     wp_update_user($data);
 
-    if ( ! empty($role) ) {
-        $user->set_role($role);
-    }
-
-    sum_set_notice('User updated successfully', 'success');
+    wp_send_json_success('User updated successfully');
 }
 
---------------------------------------------------------------------
-10. DELETE USER (UNCHANGED)
---------------------------------------------------------------------
-
-function sum_delete_user_page() {
-    sum_check_permission();
-    ?>
-
-    <div class="wrap">
-        <h2>Delete User</h2>
-
-        <?php sum_show_notice(); ?>
-
-        <form method="post">
-            <?php wp_nonce_field('sum_delete_user_action', 'sum_delete_user_nonce'); ?>
-            <input type="number" name="user_id" required>
-            <input type="submit" name="sum_delete_user_submit" class="button button-danger" value="Delete User">
-        </form>
-    </div>
-
-    <?php
-}
-
-add_action('admin_init', 'sum_handle_delete_user');
-
-function sum_handle_delete_user() {
-
-    if ( ! isset($_POST['sum_delete_user_submit']) ) {
-        return;
-    }
-
-    if ( ! wp_verify_nonce($_POST['sum_delete_user_nonce'], 'sum_delete_user_action') ) {
-        wp_die('Security check failed');
-    }
-
-    if ( ! current_user_can('manage_users') ) {
-        wp_die('Unauthorized');
-    }
+function sum_delete_user() {
 
     $user_id = intval($_POST['user_id']);
 
     if ( ! get_user_by('ID', $user_id) ) {
-        sum_set_notice('User not found', 'error');
-        return;
+        wp_send_json_error('User not found');
     }
 
     wp_delete_user($user_id);
-    sum_set_notice('User deleted successfully', 'success');
-}
 
---------------------------------------------------------------------
-11. ADMIN NOTICE SYSTEM
---------------------------------------------------------------------
-
-function sum_set_notice($msg, $type) {
-    set_transient('sum_notice', array(
-        'message' => $msg,
-        'type'    => $type
-    ), 30);
-}
-
-function sum_show_notice() {
-    $notice = get_transient('sum_notice');
-    if ( $notice ) {
-        echo '<div class="notice notice-' . esc_attr($notice['type']) . '"><p>' . esc_html($notice['message']) . '</p></div>';
-        delete_transient('sum_notice');
-    }
+    wp_send_json_success('User deleted successfully');
 }
 
 ====================================================================
-END
+5. VIEWS (SEPARATE VIEW FUNCTIONS)
+====================================================================
+
+function sum_view_add_user() {
+    sum_render_view('add');
+}
+
+function sum_view_update_user() {
+    sum_render_view('update');
+}
+
+function sum_view_delete_user() {
+    sum_render_view('delete');
+}
+
+function sum_render_view($type) {
+
+    sum_check_permission();
+    wp_enqueue_script('sum-js');
+    ?>
+
+    <div class="wrap">
+        <h2><?php echo ucfirst($type); ?> User</h2>
+
+        <form class="sum-form" data-type="<?php echo esc_attr($type); ?>">
+
+            <?php if ( $type !== 'add' ) : ?>
+                <input type="number" name="user_id" placeholder="User ID" required><br><br>
+            <?php endif; ?>
+
+            <?php if ( $type !== 'delete' ) : ?>
+                <?php if ( $type === 'add' ) : ?>
+                    <input type="text" name="username" placeholder="Username" required><br><br>
+                <?php endif; ?>
+                <input type="email" name="email" placeholder="Email"><br><br>
+                <input type="password" name="password" placeholder="Password"><br><br>
+            <?php endif; ?>
+
+            <input type="hidden" name="nonce" value="<?php echo esc_attr( sum_nonce_field() ); ?>">
+
+            <button class="button button-primary"><?php echo ucfirst($type); ?></button>
+        </form>
+
+        <div class="sum-message"></div>
+    </div>
+
+<?php
+}
+
+====================================================================
+6. AJAX JAVASCRIPT (INLINE)
+====================================================================
+
+add_action('admin_enqueue_scripts', function () {
+
+    wp_register_script('sum-js', '', ['jquery'], null, true);
+
+    wp_add_inline_script('sum-js', "
+        jQuery(document).on('submit', '.sum-form', function(e) {
+            e.preventDefault();
+
+            let form = jQuery(this);
+            let data = form.serialize();
+
+            data += '&action=sum_user_controller';
+            data += '&type=' + form.data('type');
+
+            jQuery.post(ajaxurl, data, function(res) {
+                form.next('.sum-message').html(
+                    '<div class=\"notice notice-' + (res.success ? 'success' : 'error') + '\"><p>' + res.data + '</p></div>'
+                );
+            });
+        });
+    ");
+});
+
+====================================================================
+END OF PLUGIN
 ====================================================================
