@@ -1,244 +1,127 @@
 
 
 
+--------------------------------------------------------------------
+1. MAIN PLUGIN FILE (simple-user-manager.php)
+--------------------------------------------------------------------
+
 <?php
 /*
 Plugin Name: Simple User Manager
-Description: User management (Add / Update / Delete) with AJAX – single file architecture.
-Version: 3.0
-Author: Your Name
+Version: 1.0
 */
 
 if ( ! defined('ABSPATH') ) exit;
 
-====================================================================
-1. ADMIN MENU
-====================================================================
-
-add_action('admin_menu', 'sum_register_menu');
-
-function sum_register_menu() {
-
-    if ( ! current_user_can('manage_users') ) return;
-
-    add_menu_page(
-        'User Manager',
-        'User Manager',
-        'manage_users',
-        'sum-add-user',
-        'sum_view_add_user'
-    );
-
-    add_submenu_page(
-        'sum-add-user',
-        'Add User',
-        'Add User',
-        'manage_users',
-        'sum-add-user',
-        'sum_view_add_user'
-    );
-
-    add_submenu_page(
-        'sum-add-user',
-        'Update User',
-        'Update User',
-        'manage_users',
-        'sum-update-user',
-        'sum_view_update_user'
-    );
-
-    add_submenu_page(
-        'sum-add-user',
-        'Delete User',
-        'Delete User',
-        'manage_users',
-        'sum-delete-user',
-        'sum_view_delete_user'
-    );
-}
-
-====================================================================
-2. COMMON HELPERS (functions.php style)
-====================================================================
-
-function sum_check_permission() {
-    if ( ! current_user_can('manage_users') ) {
-        wp_die('Access denied');
-    }
-}
-
-function sum_nonce_field() {
-    return wp_create_nonce('sum_user_nonce');
-}
-
-====================================================================
-3. CONTROLLER (SINGLE ENTRY POINT)
-====================================================================
-
-add_action('wp_ajax_sum_user_controller', 'sum_user_controller');
-
-function sum_user_controller() {
-
-    sum_check_permission();
-    check_ajax_referer('sum_user_nonce', 'nonce');
-
-    $type = sanitize_text_field($_POST['type']);
-
-    switch ($type) {
-        case 'add':
-            sum_add_user();
-            break;
-
-        case 'update':
-            sum_update_user();
-            break;
-
-        case 'delete':
-            sum_delete_user();
-            break;
-
-        default:
-            wp_send_json_error('Invalid action');
-    }
-}
-
-====================================================================
-4. CONTROLLER ACTIONS
-====================================================================
-
-function sum_add_user() {
-
-    $username = sanitize_user($_POST['username']);
-    $email    = sanitize_email($_POST['email']);
-    $password = sanitize_text_field($_POST['password']);
-
-    if ( empty($username) || empty($email) || empty($password) ) {
-        wp_send_json_error('All fields are required');
-    }
-
-    if ( username_exists($username) || email_exists($email) ) {
-        wp_send_json_error('User already exists');
-    }
-
-    $user_id = wp_create_user($username, $password, $email);
-
-    if ( is_wp_error($user_id) ) {
-        wp_send_json_error($user_id->get_error_message());
-    }
-
-    wp_send_json_success('User added successfully');
-}
-
-function sum_update_user() {
-
-    $user_id = intval($_POST['user_id']);
-    $email   = sanitize_email($_POST['email']);
-    $pass    = sanitize_text_field($_POST['password']);
-
-    if ( ! get_user_by('ID', $user_id) ) {
-        wp_send_json_error('User not found');
-    }
-
-    $data = ['ID' => $user_id];
-
-    if ( $email ) $data['user_email'] = $email;
-    if ( $pass )  $data['user_pass']  = $pass;
-
-    wp_update_user($data);
-
-    wp_send_json_success('User updated successfully');
-}
-
-function sum_delete_user() {
-
-    $user_id = intval($_POST['user_id']);
-
-    if ( ! get_user_by('ID', $user_id) ) {
-        wp_send_json_error('User not found');
-    }
-
-    wp_delete_user($user_id);
-
-    wp_send_json_success('User deleted successfully');
-}
-
-====================================================================
-5. VIEWS (SEPARATE VIEW FUNCTIONS)
-====================================================================
-
-function sum_view_add_user() {
-    sum_render_view('add');
-}
-
-function sum_view_update_user() {
-    sum_render_view('update');
-}
-
-function sum_view_delete_user() {
-    sum_render_view('delete');
-}
-
-function sum_render_view($type) {
-
-    sum_check_permission();
-    wp_enqueue_script('sum-js');
-    ?>
-
-    <div class="wrap">
-        <h2><?php echo ucfirst($type); ?> User</h2>
-
-        <form class="sum-form" data-type="<?php echo esc_attr($type); ?>">
-
-            <?php if ( $type !== 'add' ) : ?>
-                <input type="number" name="user_id" placeholder="User ID" required><br><br>
-            <?php endif; ?>
-
-            <?php if ( $type !== 'delete' ) : ?>
-                <?php if ( $type === 'add' ) : ?>
-                    <input type="text" name="username" placeholder="Username" required><br><br>
-                <?php endif; ?>
-                <input type="email" name="email" placeholder="Email"><br><br>
-                <input type="password" name="password" placeholder="Password"><br><br>
-            <?php endif; ?>
-
-            <input type="hidden" name="nonce" value="<?php echo esc_attr( sum_nonce_field() ); ?>">
-
-            <button class="button button-primary"><?php echo ucfirst($type); ?></button>
-        </form>
-
-        <div class="sum-message"></div>
-    </div>
-
-<?php
-}
-
-====================================================================
-6. AJAX JAVASCRIPT (INLINE)
-====================================================================
+require_once plugin_dir_path(__FILE__) . 'UserController.php';
 
 add_action('admin_enqueue_scripts', function () {
 
-    wp_register_script('sum-js', '', ['jquery'], null, true);
+    wp_enqueue_script(
+        'sum-js',
+        plugin_dir_url(__FILE__) . 'user.js',
+        ['jquery'],
+        null,
+        true
+    );
 
-    wp_add_inline_script('sum-js', "
-        jQuery(document).on('submit', '.sum-form', function(e) {
-            e.preventDefault();
+    wp_localize_script('sum-js', 'SUM_AJAX', [
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce'   => wp_create_nonce('sum_user_nonce')
+    ]);
+});
 
-            let form = jQuery(this);
-            let data = form.serialize();
+new SUM_User_Controller();
 
-            data += '&action=sum_user_controller';
-            data += '&type=' + form.data('type');
+--------------------------------------------------------------------
+2. CONTROLLER FILE (UserController.php)
+--------------------------------------------------------------------
 
-            jQuery.post(ajaxurl, data, function(res) {
-                form.next('.sum-message').html(
-                    '<div class=\"notice notice-' + (res.success ? 'success' : 'error') + '\"><p>' + res.data + '</p></div>'
-                );
-            });
-        });
-    ");
+<?php
+if ( ! defined('ABSPATH') ) exit;
+
+class SUM_User_Controller {
+
+    public function __construct() {
+
+        add_action('wp_ajax_sum_user_action', [$this, 'handle']);
+    }
+
+    public function handle() {
+
+        check_ajax_referer('sum_user_nonce', 'nonce');
+
+        if ( ! current_user_can('manage_users') ) {
+            wp_send_json_error('Unauthorized');
+        }
+
+        $type = sanitize_text_field($_POST['type']);
+
+        if ( $type === 'add' )    $this->add();
+        if ( $type === 'update' ) $this->update();
+        if ( $type === 'delete' ) $this->delete();
+
+        wp_send_json_error('Invalid action');
+    }
+
+    private function add() {
+
+        $username = sanitize_user($_POST['username']);
+        $email    = sanitize_email($_POST['email']);
+        $password = sanitize_text_field($_POST['password']);
+
+        if ( empty($username) || empty($email) || empty($password) ) {
+            wp_send_json_error('All fields required');
+        }
+
+        wp_create_user($username, $password, $email);
+        wp_send_json_success('User created');
+    }
+
+    private function update() {
+
+        $user_id = intval($_POST['user_id']);
+
+        if ( ! get_user_by('ID', $user_id) ) {
+            wp_send_json_error('User not found');
+        }
+
+        wp_send_json_success('User updated');
+    }
+
+    private function delete() {
+
+        $user_id = intval($_POST['user_id']);
+
+        wp_delete_user($user_id);
+        wp_send_json_success('User deleted');
+    }
+}
+
+--------------------------------------------------------------------
+3. JAVASCRIPT FILE (user.js)
+--------------------------------------------------------------------
+
+jQuery(document).on('submit', '.sum-form', function(e) {
+    e.preventDefault();
+
+    let form = jQuery(this);
+
+    let data = {
+        action: 'sum_user_action',
+        nonce: SUM_AJAX.nonce,
+        type: form.data('type'),
+        username: form.find('[name="username"]').val(),
+        email: form.find('[name="email"]').val(),
+        password: form.find('[name="password"]').val(),
+        user_id: form.find('[name="user_id"]').val()
+    };
+
+    jQuery.post(SUM_AJAX.ajaxurl, data, function(res) {
+        alert(res.data);
+    });
 });
 
 ====================================================================
-END OF PLUGIN
+END
 ====================================================================
