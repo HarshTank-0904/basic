@@ -1,231 +1,151 @@
 
 
 
-ASSUMED TABLE
+PLUGIN STRUCTURE
+================
+recent-users-block/
+│
+├── recent-users-block.php
+├── functions.php
+│
+├── app/
+│   ├── Controllers/
+│   │   └── UserController.php
+│   │
+│   ├── Models/
+│   │   └── UserModel.php
+│   │
+│   └── Views/
+│       └── users-view.php
+│
+└── assets/
+    └── block.js
 
-$table = $wpdb->prefix . 'custom_users';
 
-FIELDS
+---------------------------------------------
+FILE: recent-users-block.php
+---------------------------------------------
+<?php
+/**
+ * Plugin Name: Recent Users Gutenberg Block
+ * Description: Displays recent registered users using Gutenberg block
+ * Version: 1.0
+ */
 
-id
-firstname
-lastname
-email
-description
+if (!defined('ABSPATH')) exit;
+
+define('RUB_PATH', plugin_dir_path(__FILE__));
+define('RUB_URL', plugin_dir_url(__FILE__));
+
+require_once RUB_PATH . 'functions.php';
 
 
-
-PLUGIN MAIN FILE
-
+---------------------------------------------
+FILE: functions.php
+---------------------------------------------
 <?php
 
-include_once plugin_dir_path(__FILE__) . 'functions.php';
+if (!defined('ABSPATH')) exit;
 
-add_shortcode('wpdb_all_methods', 'wpdb_all_methods_ui');
+add_action('init', 'rub_register_block');
+
+function rub_register_block() {
+    wp_register_script(
+        'rub-block',
+        RUB_URL . 'assets/block.js',
+        ['wp-blocks', 'wp-element', 'wp-editor'],
+        true
+    );
+
+    register_block_type('rub/recent-users', [
+        'editor_script' => 'rub-block',
+        'render_callback' => 'rub_render_users'
+    ]);
+}
+
+function rub_render_users() {
+    require_once RUB_PATH . 'app/Controllers/UserController.php';
+    $controller = new UserController();
+    return $controller->render();
+}
 
 
-
-FUNCTIONS FILE
-
+---------------------------------------------
+FILE: app/Controllers/UserController.php
+---------------------------------------------
 <?php
 
-function wpdb_all_methods_ui() {
+if (!defined('ABSPATH')) exit;
 
-	$limit = isset($_POST['limit']) ? intval($_POST['limit']) : 1;
+require_once RUB_PATH . 'app/Models/UserModel.php';
 
-	echo '<form method="post">';
-	echo '<button name="limit" value="1">1</button>';
-	echo '<button name="limit" value="3">3</button>';
-	echo '<button name="limit" value="5">5</button>';
-	echo '</form>';
+class UserController {
 
-	wpdb_query_method();
-	wpdb_get_var_method();
-	wpdb_get_row_method();
-	wpdb_get_col_method();
-	wpdb_get_results_method($limit);
+    public function render() {
+        $model = new UserModel();
+        $users = $model->get_recent_users();
+        ob_start();
+        require RUB_PATH . 'app/Views/users-view.php';
+        return ob_get_clean();
+    }
 }
 
 
+---------------------------------------------
+FILE: app/Models/UserModel.php
+---------------------------------------------
+<?php
 
-function wpdb_query_method() {
-	global $wpdb;
+if (!defined('ABSPATH')) exit;
 
-	$table = $wpdb->prefix . 'custom_users';
+class UserModel {
 
-	$sql = "SELECT id FROM $table";
-
-	$wpdb->query($sql);
-
-	echo 'query executed';
+    public function get_recent_users() {
+        return get_users([
+            'number' => 5,
+            'orderby' => 'registered',
+            'order' => 'DESC'
+        ]);
+    }
 }
 
 
-
-function wpdb_get_var_method() {
-	global $wpdb;
-
-	$table = $wpdb->prefix . 'custom_users';
-
-	$count = $wpdb->get_var("SELECT COUNT(id) FROM $table");
-
-	echo '<p>Total Records: ' . esc_html($count) . '</p>';
-}
-
-
-
-function wpdb_get_row_method() {
-	global $wpdb;
-
-	$table = $wpdb->prefix . 'custom_users';
-
-	$row = $wpdb->get_row("SELECT * FROM $table ORDER BY id DESC");
-
-	if ($row) {
-		echo '<p>Single Row: ' . esc_html($row->firstname) . '</p>';
-	}
-}
+---------------------------------------------
+FILE: app/Views/users-view.php
+---------------------------------------------
+<?php if (!empty($users)) : ?>
+<ul class="recent-users-block">
+    <?php foreach ($users as $user) : ?>
+        <li>
+            <?php echo esc_html($user->display_name); ?>
+        </li>
+    <?php endforeach; ?>
+</ul>
+<?php else : ?>
+<p>No users found.</p>
+<?php endif; ?>
 
 
+---------------------------------------------
+FILE: assets/block.js
+---------------------------------------------
+const { registerBlockType } = wp.blocks;
+const { createElement } = wp.element;
 
-function wpdb_get_col_method() {
-	global $wpdb;
+registerBlockType('rub/recent-users', {
+    title: 'Recent Users',
+    icon: 'admin-users',
+    category: 'widgets',
 
-	$table = $wpdb->prefix . 'custom_users';
+    edit() {
+        return createElement(
+            'p',
+            {},
+            'Recent Users will be displayed on frontend'
+        );
+    },
 
-	$emails = $wpdb->get_col("SELECT email FROM $table");
-
-	echo '<ul>';
-	foreach ($emails as $email) {
-		echo '<li>' . esc_html($email) . '</li>';
-	}
-	echo '</ul>';
-}
-
-
-
-function wpdb_get_results_method($limit) {
-	global $wpdb;
-
-	$table = $wpdb->prefix . 'custom_users';
-
-	$sql = $wpdb->prepare(
-		"SELECT * FROM $table ORDER BY id DESC LIMIT %d",
-		$limit
-	);
-
-	$results = $wpdb->get_results($sql);
-
-	echo '<table border="1">';
-	foreach ($results as $row) {
-		echo '<tr>';
-		echo '<td>' . esc_html($row->id) . '</td>';
-		echo '<td>' . esc_html($row->firstname) . '</td>';
-		echo '<td>' . esc_html($row->lastname) . '</td>';
-		echo '<td>' . esc_html($row->email) . '</td>';
-		echo '<td>' . esc_html($row->description) . '</td>';
-		echo '</tr>';
-	}
-	echo '</table>';
-}
-
-
-
-function wpdb_insert_method() {
-	global $wpdb;
-
-	$table = $wpdb->prefix . 'custom_users';
-
-	$wpdb->insert(
-		$table,
-		array(
-			'firstname' => 'John',
-			'lastname' => 'Doe',
-			'email' => 'john@example.com',
-			'description' => 'Inserted record'
-		)
-	);
-}
-
-
-
-function wpdb_update_method() {
-	global $wpdb;
-
-	$table = $wpdb->prefix . 'custom_users';
-
-	$wpdb->update(
-		$table,
-		array(
-			'firstname' => 'Updated'
-		),
-		array(
-			'id' => 1
-		)
-	);
-}
-
-
-
-function wpdb_replace_method() {
-	global $wpdb;
-
-	$table = $wpdb->prefix . 'custom_users';
-
-	$wpdb->replace(
-		$table,
-		array(
-			'id' => 1,
-			'firstname' => 'Replaced',
-			'lastname' => 'User',
-			'email' => 'replace@example.com',
-			'description' => 'Replace method'
-		)
-	);
-}
-
-
-
-function wpdb_delete_method() {
-	global $wpdb;
-
-	$table = $wpdb->prefix . 'custom_users';
-
-	$wpdb->delete(
-		$table,
-		array(
-			'id' => 2
-		)
-	);
-}
-
-
-
-function wpdb_prepare_method() {
-	global $wpdb;
-
-	$table = $wpdb->prefix . 'custom_users';
-
-	$id = 1;
-
-	$sql = $wpdb->prepare(
-		"SELECT * FROM $table WHERE id = %d",
-		$id
-	);
-
-	$row = $wpdb->get_row($sql);
-
-	if ($row) {
-		echo '<p>Prepared Row: ' . esc_html($row->firstname) . '</p>';
-	}
-}
-
-
-
-HOOK EXECUTION
-
-add_action('init', 'wpdb_insert_method');
-add_action('init', 'wpdb_update_method');
-add_action('init', 'wpdb_replace_method');
-add_action('init', 'wpdb_delete_method');
-add_action('init', 'wpdb_prepare_method');
+    save() {
+        return null;
+    }
+});
