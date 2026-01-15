@@ -1,8 +1,13 @@
 
 
 
-PLUGIN STRUCTURE
-================
+PLUGIN NAME: recent-users-block
+PURPOSE: Gutenberg block to display last 5 registered users using MVC
+STRUCTURE: MVC + main plugin file + functions.php
+====================================================================
+
+FOLDER STRUCTURE
+--------------------------------------------------------------------
 recent-users-block/
 │
 ├── recent-users-block.php
@@ -16,119 +21,127 @@ recent-users-block/
 │   │   └── UserModel.php
 │   │
 │   └── Views/
-│       └── users-view.php
+│       └── recent-users-view.php
 │
 └── assets/
     └── block.js
 
 
----------------------------------------------
+====================================================================
 FILE: recent-users-block.php
----------------------------------------------
+====================================================================
 <?php
-/**
- * Plugin Name: Recent Users Gutenberg Block
- * Description: Displays recent registered users using Gutenberg block
- * Version: 1.0
- */
+/*
+Plugin Name: Recent Users Gutenberg Block
+Description: Gutenberg block to show recent registered users
+Version: 1.0
+Author: Harsh
+*/
 
-if (!defined('ABSPATH')) exit;
+if ( ! defined( 'ABSPATH' ) ) exit;
 
-define('RUB_PATH', plugin_dir_path(__FILE__));
-define('RUB_URL', plugin_dir_url(__FILE__));
+define( 'RUB_PATH', plugin_dir_path( __FILE__ ) );
+define( 'RUB_URL', plugin_dir_url( __FILE__ ) );
 
 require_once RUB_PATH . 'functions.php';
 
 
----------------------------------------------
+====================================================================
 FILE: functions.php
----------------------------------------------
+====================================================================
 <?php
 
-if (!defined('ABSPATH')) exit;
+if ( ! defined( 'ABSPATH' ) ) exit;
 
-add_action('init', 'rub_register_block');
+require_once RUB_PATH . 'app/Models/UserModel.php';
+require_once RUB_PATH . 'app/Controllers/UserController.php';
+
+add_action( 'init', 'rub_register_block' );
 
 function rub_register_block() {
+
     wp_register_script(
-        'rub-block',
+        'rub-block-js',
         RUB_URL . 'assets/block.js',
-        ['wp-blocks', 'wp-element', 'wp-editor'],
+        array( 'wp-blocks', 'wp-element', 'wp-editor' ),
+        null,
         true
     );
 
-    register_block_type('rub/recent-users', [
-        'editor_script' => 'rub-block',
-        'render_callback' => 'rub_render_users'
-    ]);
+    register_block_type( 'rub/recent-users', array(
+        'editor_script'   => 'rub-block-js',
+        'render_callback' => 'rub_render_recent_users_block'
+    ) );
 }
 
-function rub_render_users() {
-    require_once RUB_PATH . 'app/Controllers/UserController.php';
+function rub_render_recent_users_block() {
     $controller = new UserController();
     return $controller->render();
 }
 
 
----------------------------------------------
-FILE: app/Controllers/UserController.php
----------------------------------------------
+====================================================================
+FILE: app/Models/UserModel.php
+====================================================================
 <?php
 
-if (!defined('ABSPATH')) exit;
+if ( ! defined( 'ABSPATH' ) ) exit;
 
-require_once RUB_PATH . 'app/Models/UserModel.php';
+class UserModel {
+
+    public function get_recent_users( $limit = 5 ) {
+        return get_users( array(
+            'number'  => $limit,
+            'orderby' => 'registered',
+            'order'   => 'DESC'
+        ) );
+    }
+}
+
+
+====================================================================
+FILE: app/Controllers/UserController.php
+====================================================================
+<?php
+
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 class UserController {
 
+    private $model;
+
+    public function __construct() {
+        $this->model = new UserModel();
+    }
+
     public function render() {
-        $model = new UserModel();
-        $users = $model->get_recent_users();
+        $users = $this->model->get_recent_users();
         ob_start();
-        require RUB_PATH . 'app/Views/users-view.php';
+        include RUB_PATH . 'app/Views/recent-users-view.php';
         return ob_get_clean();
     }
 }
 
 
----------------------------------------------
-FILE: app/Models/UserModel.php
----------------------------------------------
-<?php
+====================================================================
+FILE: app/Views/recent-users-view.php
+====================================================================
+<?php if ( empty( $users ) ) return; ?>
 
-if (!defined('ABSPATH')) exit;
-
-class UserModel {
-
-    public function get_recent_users() {
-        return get_users([
-            'number' => 5,
-            'orderby' => 'registered',
-            'order' => 'DESC'
-        ]);
-    }
-}
+<div class="rub-recent-users">
+    <ul>
+        <?php foreach ( $users as $user ) : ?>
+            <li>
+                <?php echo esc_html( $user->display_name ); ?>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+</div>
 
 
----------------------------------------------
-FILE: app/Views/users-view.php
----------------------------------------------
-<?php if (!empty($users)) : ?>
-<ul class="recent-users-block">
-    <?php foreach ($users as $user) : ?>
-        <li>
-            <?php echo esc_html($user->display_name); ?>
-        </li>
-    <?php endforeach; ?>
-</ul>
-<?php else : ?>
-<p>No users found.</p>
-<?php endif; ?>
-
-
----------------------------------------------
+====================================================================
 FILE: assets/block.js
----------------------------------------------
+====================================================================
 const { registerBlockType } = wp.blocks;
 const { createElement } = wp.element;
 
@@ -141,7 +154,7 @@ registerBlockType('rub/recent-users', {
         return createElement(
             'p',
             {},
-            'Recent Users will be displayed on frontend'
+            'Recent Users block will be rendered on frontend'
         );
     },
 
