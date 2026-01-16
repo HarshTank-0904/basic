@@ -1,127 +1,156 @@
 
 
 
---------------------------------------------------------------------
-1. MAIN PLUGIN FILE (simple-user-manager.php)
---------------------------------------------------------------------
+PLUGIN NAME: post-page-paragraph-metabox
+PURPOSE: Add paragraph metabox to post & page using MVC
+STRUCTURE: MVC + main plugin file + functions.php
+====================================================================
 
+FOLDER STRUCTURE
+--------------------------------------------------------------------
+post-page-paragraph-metabox/
+│
+├── post-page-paragraph-metabox.php
+├── functions.php
+│
+├── app/
+│   ├── Controllers/
+│   │   └── MetaboxController.php
+│   │
+│   ├── Models/
+│   │   └── MetaboxModel.php
+│   │
+│   └── Views/
+│       └── metabox-view.php
+
+
+====================================================================
+FILE: post-page-paragraph-metabox.php
+====================================================================
 <?php
 /*
-Plugin Name: Simple User Manager
+Plugin Name: Post Page Paragraph Metabox
+Description: Adds paragraph metabox to post and page
 Version: 1.0
+Author: Harsh
 */
 
-if ( ! defined('ABSPATH') ) exit;
+if ( ! defined( 'ABSPATH' ) ) exit;
 
-require_once plugin_dir_path(__FILE__) . 'UserController.php';
+define( 'PPPM_PATH', plugin_dir_path( __FILE__ ) );
 
-add_action('admin_enqueue_scripts', function () {
+require_once PPPM_PATH . 'functions.php';
 
-    wp_enqueue_script(
-        'sum-js',
-        plugin_dir_url(__FILE__) . 'user.js',
-        ['jquery'],
-        null,
-        true
-    );
 
-    wp_localize_script('sum-js', 'SUM_AJAX', [
-        'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce'   => wp_create_nonce('sum_user_nonce')
-    ]);
-});
-
-new SUM_User_Controller();
-
---------------------------------------------------------------------
-2. CONTROLLER FILE (UserController.php)
---------------------------------------------------------------------
-
+====================================================================
+FILE: functions.php
+====================================================================
 <?php
-if ( ! defined('ABSPATH') ) exit;
 
-class SUM_User_Controller {
+if ( ! defined( 'ABSPATH' ) ) exit;
 
-    public function __construct() {
+require_once PPPM_PATH . 'app/Models/MetaboxModel.php';
+require_once PPPM_PATH . 'app/Controllers/MetaboxController.php';
 
-        add_action('wp_ajax_sum_user_action', [$this, 'handle']);
-    }
+add_action( 'add_meta_boxes', 'pppm_register_metabox' );
+add_action( 'save_post', 'pppm_save_metabox_data' );
+add_filter( 'the_content', 'pppm_display_paragraph_frontend' );
 
-    public function handle() {
+function pppm_register_metabox() {
+    $controller = new MetaboxController();
+    $controller->register();
+}
 
-        check_ajax_referer('sum_user_nonce', 'nonce');
+function pppm_save_metabox_data( $post_id ) {
+    $controller = new MetaboxController();
+    $controller->save( $post_id );
+}
 
-        if ( ! current_user_can('manage_users') ) {
-            wp_send_json_error('Unauthorized');
+function pppm_display_paragraph_frontend( $content ) {
+    if ( is_singular( array( 'post', 'page' ) ) ) {
+        $model = new MetaboxModel();
+        $paragraph = $model->get_meta( get_the_ID() );
+
+        if ( ! empty( $paragraph ) ) {
+            $content .= '<div class="pppm-paragraph">' . esc_html( $paragraph ) . '</div>';
         }
+    }
+    return $content;
+}
 
-        $type = sanitize_text_field($_POST['type']);
 
-        if ( $type === 'add' )    $this->add();
-        if ( $type === 'update' ) $this->update();
-        if ( $type === 'delete' ) $this->delete();
+====================================================================
+FILE: app/Models/MetaboxModel.php
+====================================================================
+<?php
 
-        wp_send_json_error('Invalid action');
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+class MetaboxModel {
+
+    private $meta_key = '_pppm_paragraph';
+
+    public function get_meta( $post_id ) {
+        return get_post_meta( $post_id, $this->meta_key, true );
     }
 
-    private function add() {
-
-        $username = sanitize_user($_POST['username']);
-        $email    = sanitize_email($_POST['email']);
-        $password = sanitize_text_field($_POST['password']);
-
-        if ( empty($username) || empty($email) || empty($password) ) {
-            wp_send_json_error('All fields required');
-        }
-
-        wp_create_user($username, $password, $email);
-        wp_send_json_success('User created');
-    }
-
-    private function update() {
-
-        $user_id = intval($_POST['user_id']);
-
-        if ( ! get_user_by('ID', $user_id) ) {
-            wp_send_json_error('User not found');
-        }
-
-        wp_send_json_success('User updated');
-    }
-
-    private function delete() {
-
-        $user_id = intval($_POST['user_id']);
-
-        wp_delete_user($user_id);
-        wp_send_json_success('User deleted');
+    public function save_meta( $post_id, $value ) {
+        update_post_meta( $post_id, $this->meta_key, $value );
     }
 }
 
---------------------------------------------------------------------
-3. JAVASCRIPT FILE (user.js)
---------------------------------------------------------------------
-
-jQuery(document).on('submit', '.sum-form', function(e) {
-    e.preventDefault();
-
-    let form = jQuery(this);
-
-    let data = {
-        action: 'sum_user_action',
-        nonce: SUM_AJAX.nonce,
-        type: form.data('type'),
-        username: form.find('[name="username"]').val(),
-        email: form.find('[name="email"]').val(),
-        password: form.find('[name="password"]').val(),
-        user_id: form.find('[name="user_id"]').val()
-    };
-
-    jQuery.post(SUM_AJAX.ajaxurl, data, function(res) {
-        alert(res.data);
-    });
-});
 
 ====================================================================
-END
+FILE: app/Controllers/MetaboxController.php
 ====================================================================
+<?php
+
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+class MetaboxController {
+
+    private $model;
+
+    public function __construct() {
+        $this->model = new MetaboxModel();
+    }
+
+    public function register() {
+        add_meta_box(
+            'pppm_metabox',
+            'Additional Paragraph',
+            array( $this, 'render' ),
+            array( 'post', 'page' ),
+            'normal',
+            'default'
+        );
+    }
+
+    public function render( $post ) {
+        $value = $this->model->get_meta( $post->ID );
+        include PPPM_PATH . 'app/Views/metabox-view.php';
+    }
+
+    public function save( $post_id ) {
+
+        if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
+        if ( ! current_user_can( 'edit_post', $post_id ) ) return;
+
+        if ( isset( $_POST['pppm_paragraph'] ) ) {
+            $this->model->save_meta(
+                $post_id,
+                sanitize_textarea_field( $_POST['pppm_paragraph'] )
+            );
+        }
+    }
+}
+
+
+====================================================================
+FILE: app/Views/metabox-view.php
+====================================================================
+<textarea
+    name="pppm_paragraph"
+    rows="5"
+    style="width:100%;"
+><?php echo esc_textarea( $value ); ?></textarea>
