@@ -1,17 +1,12 @@
 
-INSTRUCTION:
+
 
 SECTION A: FILTER TESTCASES
 
 1. What if we add two filters on the same hook:
    - Filter A converts content to UPPERCASE
    - Filter B converts content to LOWERCASE
-   Which output will finally appear?
-
-
-2. What if we add two filters:
-   - Both filters append text to the content
-   What will the final content look like?
+   Which output will finally appear
 
 
 3. What if two filters have the SAME priority?
