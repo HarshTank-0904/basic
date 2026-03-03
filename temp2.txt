@@ -6,6 +6,12 @@ PURPOSE: Add paragraph metabox to post & page using MVC
 STRUCTURE: MVC + main plugin file + functions.php
 ====================================================================
 
+0e327668-7a24-4bca-9c90-3c0c8b0079b4
+
+7662be76-aee0-41ea-8e2a-e6beb87413aa
+
+ES_db7ae82009ea4b8ba6195e54d162f99c
+
 FOLDER STRUCTURE
 --------------------------------------------------------------------
 post-page-paragraph-metabox/
